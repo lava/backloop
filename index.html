@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Git Diff Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            background-color: #f6f8fa;
+            color: #1f2328;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .header {
+            background: #fff;
+            border-bottom: 1px solid #d0d7de;
+            padding: 16px 20px;
+            box-shadow: 0 1px 3px rgba(16,22,26,0.1);
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .diff-container {
+            display: flex;
+            height: calc(100vh - 65px);
+            background: #fff;
+        }
+
+        .diff-pane {
+            flex: 1;
+            overflow-y: auto;
+            border-right: 1px solid #d0d7de;
+        }
+
+        .diff-pane:last-child {
+            border-right: none;
+        }
+
+        .file-section {
+            border-bottom: 1px solid #d0d7de;
+        }
+
+        .file-header {
+            background: #f6f8fa;
+            padding: 8px 16px;
+            border-bottom: 1px solid #d0d7de;
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+        }
+
+        .file-header:hover {
+            background: #eaeef2;
+        }
+
+        .file-path {
+            font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+        }
+
+        .file-stats {
+            color: #656d76;
+            font-size: 12px;
+        }
+
+        .additions {
+            color: #1a7f37;
+        }
+
+        .deletions {
+            color: #cf222e;
+        }
+
+        .collapse-icon {
+            transform: rotate(90deg);
+            transition: transform 0.2s;
+            font-size: 12px;
+            margin-right: 8px;
+        }
+
+        .collapsed .collapse-icon {
+            transform: rotate(0deg);
+        }
+
+        .diff-content {
+            font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 20px;
+        }
+
+        .diff-line {
+            display: flex;
+            min-height: 20px;
+        }
+
+        .line-number {
+            width: 40px;
+            padding: 0 8px;
+            text-align: right;
+            color: #656d76;
+            background: #f6f8fa;
+            border-right: 1px solid #d0d7de;
+            cursor: pointer;
+            user-select: none;
+            flex-shrink: 0;
+        }
+
+        .line-content {
+            flex: 1;
+            padding: 0 8px;
+            white-space: pre;
+            overflow-x: auto;
+        }
+
+        .context-line {
+            background: #fff;
+        }
+
+        .addition-line {
+            background: #e6ffed;
+        }
+
+        .addition-line .line-number {
+            background: #ccffd8;
+        }
+
+        .deletion-line {
+            background: #ffeef0;
+        }
+
+        .deletion-line .line-number {
+            background: #ffd7d5;
+        }
+
+        .line-number:hover {
+            background: #0969da !important;
+            color: #fff;
+        }
+
+        .pane-header {
+            background: #f6f8fa;
+            padding: 8px 16px;
+            border-bottom: 1px solid #d0d7de;
+            font-weight: 600;
+            font-size: 14px;
+            text-align: center;
+            color: #656d76;
+        }
+
+        .empty-line {
+            background: #f8f9fa;
+        }
+
+        .collapsed .diff-content {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Git Diff Viewer</h1>
+    </div>
+
+    <div class="diff-container">
+        <div class="diff-pane" id="old-pane">
+            <div class="pane-header">Original</div>
+            <div id="old-content"></div>
+        </div>
+        <div class="diff-pane" id="new-pane">
+            <div class="pane-header">Modified</div>
+            <div id="new-content"></div>
+        </div>
+    </div>
+
+    <script>
+        // Mock diff data structure
+        const mockDiff = {
+            files: [{
+                path: '.github/workflows/release.yaml',
+                oldPath: '.github/workflows/release.yaml',
+                additions: 2,
+                deletions: 2,
+                chunks: [{
+                    oldStart: 193,
+                    oldLines: 7,
+                    newStart: 193,
+                    newLines: 7,
+                    lines: [
+                        { type: 'context', oldNum: 193, newNum: 193, content: '    gh release create "${{ steps.version.outputs.version }}"' },
+                        { type: 'context', oldNum: 194, newNum: 194, content: '      --repo "$GITHUB_REPOSITORY"' },
+                        { type: 'deletion', oldNum: 195, newNum: null, content: '      --title "$RELEASE_TITLE"' },
+                        { type: 'addition', oldNum: null, newNum: 195, content: '      --title "Release ${{ steps.version.outputs.version }}"' },
+                        { type: 'deletion', oldNum: 196, newNum: null, content: '      --notes "$RELEASE_NOTES"' },
+                        { type: 'addition', oldNum: null, newNum: 196, content: '      --notes "Automated release for version ${{ steps.version.outputs.version }}"' },
+                        { type: 'context', oldNum: 197, newNum: 197, content: '      --draft' }
+                    ]
+                }]
+            }, {
+                path: 'src/main.py',
+                oldPath: 'src/main.py',
+                additions: 3,
+                deletions: 1,
+                chunks: [{
+                    oldStart: 1,
+                    oldLines: 5,
+                    newStart: 1,
+                    newLines: 7,
+                    lines: [
+                        { type: 'context', oldNum: 1, newNum: 1, content: 'import os' },
+                        { type: 'context', oldNum: 2, newNum: 2, content: 'import sys' },
+                        { type: 'addition', oldNum: null, newNum: 3, content: 'import json' },
+                        { type: 'addition', oldNum: null, newNum: 4, content: 'from typing import Dict, List' },
+                        { type: 'context', oldNum: 3, newNum: 5, content: '' },
+                        { type: 'deletion', oldNum: 4, newNum: null, content: 'def main():' },
+                        { type: 'addition', oldNum: null, newNum: 6, content: 'def main() -> None:' },
+                        { type: 'context', oldNum: 5, newNum: 7, content: '    print("Hello, World!")' }
+                    ]
+                }]
+            }]
+        };
+
+        // Render diff content
+        function renderDiff(diff) {
+            const oldContent = document.getElementById('old-content');
+            const newContent = document.getElementById('new-content');
+            
+            oldContent.innerHTML = '';
+            newContent.innerHTML = '';
+
+            diff.files.forEach(file => {
+                // Create file sections
+                const oldFileSection = createFileSection(file, 'old');
+                const newFileSection = createFileSection(file, 'new');
+                
+                oldContent.appendChild(oldFileSection);
+                newContent.appendChild(newFileSection);
+            });
+        }
+
+        function createFileSection(file, side) {
+            const section = document.createElement('div');
+            section.className = 'file-section';
+            
+            // File header
+            const header = document.createElement('div');
+            header.className = 'file-header';
+            header.innerHTML = `
+                <div>
+                    <span class="collapse-icon">▶</span>
+                    <span class="file-path">${file.path}</span>
+                </div>
+                <div class="file-stats">
+                    <span class="additions">+${file.additions}</span>
+                    <span class="deletions">−${file.deletions}</span>
+                </div>
+            `;
+            
+            // Add collapse functionality
+            header.addEventListener('click', () => {
+                section.classList.toggle('collapsed');
+            });
+            
+            section.appendChild(header);
+            
+            // Diff content
+            const diffContent = document.createElement('div');
+            diffContent.className = 'diff-content';
+            
+            file.chunks.forEach(chunk => {
+                chunk.lines.forEach(line => {
+                    const lineElement = createLineElement(line, side);
+                    diffContent.appendChild(lineElement);
+                });
+            });
+            
+            section.appendChild(diffContent);
+            return section;
+        }
+
+        function createLineElement(line, side) {
+            const lineDiv = document.createElement('div');
+            lineDiv.className = 'diff-line';
+            
+            // Determine what to show based on side and line type
+            let shouldShow = true;
+            let lineNum = null;
+            let cssClass = 'context-line';
+            
+            if (side === 'old') {
+                if (line.type === 'addition') {
+                    shouldShow = false; // Don't show additions in old pane
+                } else {
+                    lineNum = line.oldNum;
+                    if (line.type === 'deletion') {
+                        cssClass = 'deletion-line';
+                    }
+                }
+            } else { // new side
+                if (line.type === 'deletion') {
+                    shouldShow = false; // Don't show deletions in new pane
+                } else {
+                    lineNum = line.newNum;
+                    if (line.type === 'addition') {
+                        cssClass = 'addition-line';
+                    }
+                }
+            }
+            
+            if (!shouldShow) {
+                // Create empty line to maintain alignment
+                lineDiv.className = 'diff-line empty-line';
+                lineDiv.innerHTML = `
+                    <div class="line-number"></div>
+                    <div class="line-content"></div>
+                `;
+                return lineDiv;
+            }
+            
+            lineDiv.className += ' ' + cssClass;
+            lineDiv.innerHTML = `
+                <div class="line-number">${lineNum || ''}</div>
+                <div class="line-content">${escapeHtml(line.content)}</div>
+            `;
+            
+            return lineDiv;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Synchronized scrolling
+        function setupSynchronizedScrolling() {
+            const oldPane = document.getElementById('old-pane');
+            const newPane = document.getElementById('new-pane');
+            let isScrolling = false;
+
+            function syncScroll(source, target) {
+                if (isScrolling) return;
+                isScrolling = true;
+                target.scrollTop = source.scrollTop;
+                setTimeout(() => isScrolling = false, 10);
+            }
+
+            oldPane.addEventListener('scroll', () => syncScroll(oldPane, newPane));
+            newPane.addEventListener('scroll', () => syncScroll(newPane, oldPane));
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            renderDiff(mockDiff);
+            setupSynchronizedScrolling();
+        });
+    </script>
+</body>
+</html>
