@@ -17,6 +17,10 @@ async def read_index() -> FileResponse:
         raise FileNotFoundError(f"index.html not found at {index_path}")
     return FileResponse(index_path)
 
-if __name__ == "__main__":
+def main() -> None:
+    """Entry point for the reviewer-server command."""
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
+
+if __name__ == "__main__":
+    main()
