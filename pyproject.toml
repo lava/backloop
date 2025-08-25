@@ -1,0 +1,30 @@
+[project]
+name = "reviewer"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Benno Evers", email = "benno@bourbaki" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "pydantic>=2.11.7",
+]
+
+[project.scripts]
+reviewer = "reviewer:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+    "mypy>=1.17.1",
+]
+
+[tool.mypy]
+plugins = ["pydantic.mypy"]
+check_untyped_defs = true
+disallow_untyped_defs = true
