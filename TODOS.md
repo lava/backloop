@@ -29,13 +29,13 @@ Key reference: GitHub's PR Files Changed tab interface (see screenshot.png)
 - [x] Implement proper alignment when lines are added/removed
 - [x] Add line highlighting on hover
 
-### Task 3: Comment System UI
-- [ ] Make line numbers clickable to trigger comment mode
-- [ ] Create comment form that appears inline when line is clicked
-- [ ] Display existing comments inline with the diff
-- [ ] Add comment counter badges on commented lines
-- [ ] Implement comment collapse/expand
-- [ ] Store comments in localStorage for persistence
+### Task 3: Comment System UI ✅
+- [x] Make line numbers clickable to trigger comment mode
+- [x] Create comment form that appears inline when line is clicked
+- [x] Display existing comments inline with the diff
+- [x] Add comment counter badges on commented lines
+- [x] Implement comment collapse/expand
+- [x] Store comments in localStorage for persistence
 
 ## Upcoming Tasks (Backend Integration)
 

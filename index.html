@@ -218,6 +218,174 @@
         .collapsed .diff-content {
             display: none;
         }
+
+        /* Comment System Styles */
+        .comment-badge {
+            position: absolute;
+            right: -8px;
+            top: 1px;
+            background: #0969da;
+            color: white;
+            border-radius: 10px;
+            padding: 2px 6px;
+            font-size: 10px;
+            font-weight: bold;
+            min-width: 16px;
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        .line-number {
+            position: relative;
+        }
+
+        .comment-form {
+            background: #fff;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            margin: 8px;
+            padding: 12px;
+            box-shadow: 0 1px 3px rgba(16,22,26,0.1);
+        }
+
+        .comment-form textarea {
+            width: 100%;
+            min-height: 80px;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            padding: 8px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 14px;
+            resize: vertical;
+            margin-bottom: 8px;
+        }
+
+        .comment-form textarea:focus {
+            outline: none;
+            border-color: #0969da;
+            box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.1);
+        }
+
+        .comment-form-buttons {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .btn {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-primary {
+            background: #1f883d;
+            color: white;
+            border-color: #1f883d;
+        }
+
+        .btn-primary:hover {
+            background: #1a7f37;
+            border-color: #1a7f37;
+        }
+
+        .btn-secondary {
+            background: #f6f8fa;
+            color: #24292f;
+            border-color: #d0d7de;
+        }
+
+        .btn-secondary:hover {
+            background: #f3f4f6;
+            border-color: #d0d7de;
+        }
+
+        .comment-thread {
+            background: #fff;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            margin: 8px;
+            overflow: hidden;
+        }
+
+        .comment {
+            border-bottom: 1px solid #d0d7de;
+            padding: 12px;
+        }
+
+        .comment:last-child {
+            border-bottom: none;
+        }
+
+        .comment-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 12px;
+            color: #656d76;
+        }
+
+        .comment-author {
+            font-weight: 600;
+            color: #24292f;
+        }
+
+        .comment-timestamp {
+            color: #656d76;
+        }
+
+        .comment-body {
+            color: #24292f;
+            font-size: 14px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+
+        .comment-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            font-size: 12px;
+        }
+
+        .comment-action {
+            color: #656d76;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .comment-action:hover {
+            color: #0969da;
+        }
+
+        .comment-toggle {
+            cursor: pointer;
+            color: #0969da;
+            font-size: 12px;
+            margin: 4px 8px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .comment-toggle:hover {
+            text-decoration: underline;
+        }
+
+        .comment-thread.collapsed .comment {
+            display: none;
+        }
+
+        .comment-thread.collapsed .comment:first-child {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -420,10 +588,221 @@
             newPane.addEventListener('scroll', () => syncScroll(newPane, oldPane));
         }
 
+        // Comment System
+        class CommentSystem {
+            constructor() {
+                this.comments = this.loadComments();
+                this.activeForm = null;
+            }
+
+            loadComments() {
+                try {
+                    return JSON.parse(localStorage.getItem('diffComments') || '{}');
+                } catch {
+                    return {};
+                }
+            }
+
+            saveComments() {
+                localStorage.setItem('diffComments', JSON.stringify(this.comments));
+            }
+
+            getLineId(filePath, oldNum, newNum, side) {
+                return `${filePath}:${side}:${oldNum || 'null'}:${newNum || 'null'}`;
+            }
+
+            addComment(lineId, text) {
+                if (!this.comments[lineId]) {
+                    this.comments[lineId] = [];
+                }
+                
+                const comment = {
+                    id: Date.now().toString(),
+                    text,
+                    author: 'You',
+                    timestamp: new Date().toLocaleString(),
+                    created: Date.now()
+                };
+                
+                this.comments[lineId].push(comment);
+                this.saveComments();
+                return comment;
+            }
+
+            getComments(lineId) {
+                return this.comments[lineId] || [];
+            }
+
+            hasComments(lineId) {
+                return this.comments[lineId] && this.comments[lineId].length > 0;
+            }
+
+            getCommentCount(lineId) {
+                return this.comments[lineId] ? this.comments[lineId].length : 0;
+            }
+
+            showCommentForm(lineElement, lineId, filePath, oldNum, newNum, side) {
+                // Remove any existing form
+                this.hideCommentForm();
+                
+                const form = document.createElement('div');
+                form.className = 'comment-form';
+                form.innerHTML = `
+                    <textarea placeholder="Leave a comment..." autofocus></textarea>
+                    <div class="comment-form-buttons">
+                        <button type="button" class="btn btn-secondary" data-action="cancel">Cancel</button>
+                        <button type="button" class="btn btn-primary" data-action="submit">Comment</button>
+                    </div>
+                `;
+                
+                const textarea = form.querySelector('textarea');
+                const cancelBtn = form.querySelector('[data-action="cancel"]');
+                const submitBtn = form.querySelector('[data-action="submit"]');
+                
+                cancelBtn.onclick = () => this.hideCommentForm();
+                submitBtn.onclick = () => {
+                    const text = textarea.value.trim();
+                    if (text) {
+                        this.addComment(lineId, text);
+                        this.hideCommentForm();
+                        this.renderComments(lineElement, lineId);
+                        this.updateCommentBadge(lineElement, lineId);
+                    }
+                };
+                
+                // Insert form after the line
+                lineElement.insertAdjacentElement('afterend', form);
+                this.activeForm = form;
+                textarea.focus();
+            }
+
+            hideCommentForm() {
+                if (this.activeForm) {
+                    this.activeForm.remove();
+                    this.activeForm = null;
+                }
+            }
+
+            renderComments(lineElement, lineId) {
+                // Remove existing comment thread
+                const existingThread = lineElement.nextElementSibling;
+                if (existingThread && existingThread.classList.contains('comment-thread')) {
+                    existingThread.remove();
+                }
+
+                const comments = this.getComments(lineId);
+                if (comments.length === 0) return;
+
+                const thread = document.createElement('div');
+                thread.className = 'comment-thread';
+                
+                if (comments.length > 1) {
+                    const toggle = document.createElement('div');
+                    toggle.className = 'comment-toggle';
+                    toggle.innerHTML = `▼ ${comments.length} comments`;
+                    toggle.onclick = () => {
+                        thread.classList.toggle('collapsed');
+                        toggle.innerHTML = thread.classList.contains('collapsed') 
+                            ? `▶ ${comments.length} comments`
+                            : `▼ ${comments.length} comments`;
+                    };
+                    thread.appendChild(toggle);
+                }
+
+                comments.forEach(comment => {
+                    const commentDiv = document.createElement('div');
+                    commentDiv.className = 'comment';
+                    commentDiv.innerHTML = `
+                        <div class="comment-header">
+                            <span class="comment-author">${escapeHtml(comment.author)}</span>
+                            <span class="comment-timestamp">${comment.timestamp}</span>
+                        </div>
+                        <div class="comment-body">${escapeHtml(comment.text)}</div>
+                    `;
+                    thread.appendChild(commentDiv);
+                });
+
+                lineElement.insertAdjacentElement('afterend', thread);
+            }
+
+            updateCommentBadge(lineElement, lineId) {
+                const lineNumber = lineElement.querySelector('.line-number');
+                const existingBadge = lineNumber.querySelector('.comment-badge');
+                
+                if (existingBadge) {
+                    existingBadge.remove();
+                }
+
+                const count = this.getCommentCount(lineId);
+                if (count > 0) {
+                    const badge = document.createElement('div');
+                    badge.className = 'comment-badge';
+                    badge.textContent = count;
+                    lineNumber.appendChild(badge);
+                }
+            }
+
+            setupLineClickHandlers() {
+                document.addEventListener('click', (e) => {
+                    const lineNumber = e.target.closest('.line-number');
+                    if (!lineNumber) return;
+
+                    const lineElement = lineNumber.closest('.diff-line');
+                    if (!lineElement || lineElement.classList.contains('empty-line')) return;
+
+                    // Extract line information
+                    const fileSection = lineElement.closest('.file-section');
+                    const filePath = fileSection.querySelector('.file-path').textContent;
+                    const diffPane = lineElement.closest('.diff-pane');
+                    const side = diffPane.id === 'old-pane' ? 'old' : 'new';
+                    
+                    const oldNumEl = lineNumber.querySelector('.old-line-num');
+                    const newNumEl = lineNumber.querySelector('.new-line-num');
+                    const oldNum = oldNumEl.textContent.trim() || null;
+                    const newNum = newNumEl.textContent.trim() || null;
+                    
+                    const lineId = this.getLineId(filePath, oldNum, newNum, side);
+                    
+                    // Show comment form
+                    this.showCommentForm(lineElement, lineId, filePath, oldNum, newNum, side);
+                });
+            }
+
+            initializeExistingComments() {
+                // Add badges and render comments for existing comments
+                document.querySelectorAll('.diff-line').forEach(lineElement => {
+                    if (lineElement.classList.contains('empty-line')) return;
+
+                    const fileSection = lineElement.closest('.file-section');
+                    const filePath = fileSection.querySelector('.file-path').textContent;
+                    const diffPane = lineElement.closest('.diff-pane');
+                    const side = diffPane.id === 'old-pane' ? 'old' : 'new';
+                    
+                    const lineNumber = lineElement.querySelector('.line-number');
+                    const oldNumEl = lineNumber.querySelector('.old-line-num');
+                    const newNumEl = lineNumber.querySelector('.new-line-num');
+                    const oldNum = oldNumEl.textContent.trim() || null;
+                    const newNum = newNumEl.textContent.trim() || null;
+                    
+                    const lineId = this.getLineId(filePath, oldNum, newNum, side);
+                    
+                    if (this.hasComments(lineId)) {
+                        this.updateCommentBadge(lineElement, lineId);
+                        this.renderComments(lineElement, lineId);
+                    }
+                });
+            }
+        }
+
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             renderDiff(mockDiff);
             setupSynchronizedScrolling();
+            
+            // Initialize comment system
+            const commentSystem = new CommentSystem();
+            commentSystem.setupLineClickHandlers();
+            commentSystem.initializeExistingComments();
         });
     </script>
 </body>
