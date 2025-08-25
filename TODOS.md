@@ -21,13 +21,13 @@ Key reference: GitHub's PR Files Changed tab interface (see screenshot.png)
 - [x] Display file path header above each diff section
 - [x] Add expand/collapse for file sections
 
-### Task 2: GitHub-Style Diff Visualization
-- [ ] Implement line numbering on both sides (old and new line numbers)
-- [ ] Add background colors: light red for deletions, light green for additions
-- [ ] Style unchanged context lines with gray line numbers
-- [ ] Add +/- indicators in the gutter
-- [ ] Implement proper alignment when lines are added/removed
-- [ ] Add line highlighting on hover
+### Task 2: GitHub-Style Diff Visualization ✅
+- [x] Implement line numbering on both sides (old and new line numbers)
+- [x] Add background colors: light red for deletions, light green for additions
+- [x] Style unchanged context lines with gray line numbers
+- [x] Add +/- indicators in the gutter
+- [x] Implement proper alignment when lines are added/removed
+- [x] Add line highlighting on hover
 
 ### Task 3: Comment System UI
 - [ ] Make line numbers clickable to trigger comment mode

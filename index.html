@@ -107,8 +107,8 @@
         }
 
         .line-number {
-            width: 40px;
-            padding: 0 8px;
+            width: 80px;
+            padding: 0 4px;
             text-align: right;
             color: #656d76;
             background: #f6f8fa;
@@ -116,6 +116,21 @@
             cursor: pointer;
             user-select: none;
             flex-shrink: 0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+        }
+
+        .old-line-num,
+        .new-line-num {
+            width: 35px;
+            text-align: right;
+        }
+
+        .gutter-indicator {
+            width: 10px;
+            text-align: center;
+            font-weight: bold;
         }
 
         .line-content {
@@ -129,12 +144,21 @@
             background: #fff;
         }
 
+        .context-line .old-line-num,
+        .context-line .new-line-num {
+            color: #656d76;
+        }
+
         .addition-line {
             background: #e6ffed;
         }
 
         .addition-line .line-number {
             background: #ccffd8;
+        }
+
+        .addition-line .gutter-indicator {
+            color: #1a7f37;
         }
 
         .deletion-line {
@@ -145,8 +169,30 @@
             background: #ffd7d5;
         }
 
+        .deletion-line .gutter-indicator {
+            color: #cf222e;
+        }
+
+        .diff-line:hover {
+            background: #f6f8fa;
+        }
+
+        .addition-line:hover {
+            background: #d3f6db;
+        }
+
+        .deletion-line:hover {
+            background: #ffd8da;
+        }
+
         .line-number:hover {
             background: #0969da !important;
+            color: #fff;
+        }
+
+        .line-number:hover .old-line-num,
+        .line-number:hover .new-line-num,
+        .line-number:hover .gutter-indicator {
             color: #fff;
         }
 
@@ -161,6 +207,11 @@
         }
 
         .empty-line {
+            background: #f8f9fa;
+            min-height: 20px;
+        }
+
+        .empty-line .line-number {
             background: #f8f9fa;
         }
 
@@ -296,25 +347,25 @@
             
             // Determine what to show based on side and line type
             let shouldShow = true;
-            let lineNum = null;
             let cssClass = 'context-line';
+            let indicator = '';
             
             if (side === 'old') {
                 if (line.type === 'addition') {
                     shouldShow = false; // Don't show additions in old pane
                 } else {
-                    lineNum = line.oldNum;
                     if (line.type === 'deletion') {
                         cssClass = 'deletion-line';
+                        indicator = '−';
                     }
                 }
             } else { // new side
                 if (line.type === 'deletion') {
                     shouldShow = false; // Don't show deletions in new pane
                 } else {
-                    lineNum = line.newNum;
                     if (line.type === 'addition') {
                         cssClass = 'addition-line';
+                        indicator = '+';
                     }
                 }
             }
@@ -323,7 +374,11 @@
                 // Create empty line to maintain alignment
                 lineDiv.className = 'diff-line empty-line';
                 lineDiv.innerHTML = `
-                    <div class="line-number"></div>
+                    <div class="line-number">
+                        <span class="old-line-num"></span>
+                        <span class="gutter-indicator"></span>
+                        <span class="new-line-num"></span>
+                    </div>
                     <div class="line-content"></div>
                 `;
                 return lineDiv;
@@ -331,7 +386,11 @@
             
             lineDiv.className += ' ' + cssClass;
             lineDiv.innerHTML = `
-                <div class="line-number">${lineNum || ''}</div>
+                <div class="line-number">
+                    <span class="old-line-num">${line.oldNum || ''}</span>
+                    <span class="gutter-indicator">${indicator}</span>
+                    <span class="new-line-num">${line.newNum || ''}</span>
+                </div>
                 <div class="line-content">${escapeHtml(line.content)}</div>
             `;
             
