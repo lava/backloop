@@ -14,8 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-reviewer = "reviewer:main"
-server = "server:main"
+server = "reviewer.server:main"
 
 [build-system]
 requires = ["hatchling"]
