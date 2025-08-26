@@ -31,10 +31,118 @@
             font-weight: 600;
         }
 
-        .diff-container {
+        .main-container {
             display: flex;
             height: calc(100vh - 65px);
             background: #fff;
+        }
+
+        .files-sidebar {
+            width: 300px;
+            border-right: 1px solid #d0d7de;
+            background: #fff;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .files-sidebar-header {
+            background: #f6f8fa;
+            padding: 12px 16px;
+            border-bottom: 1px solid #d0d7de;
+            font-weight: 600;
+            font-size: 14px;
+            color: #24292f;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .files-count {
+            background: #eaeef2;
+            color: #656d76;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .file-tree {
+            padding: 8px 0;
+        }
+
+        .file-tree-item {
+            display: flex;
+            align-items: center;
+            padding: 6px 16px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #24292f;
+        }
+
+        .file-tree-item:hover {
+            background: #f6f8fa;
+        }
+
+        .file-tree-item.active {
+            background: #ddf4ff;
+            color: #0969da;
+        }
+
+        .file-icon {
+            width: 16px;
+            height: 16px;
+            margin-right: 8px;
+            color: #656d76;
+        }
+
+        .file-name {
+            flex: 1;
+            font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+            font-size: 13px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .file-changes {
+            margin-left: 8px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .folder-item {
+            font-weight: 500;
+            color: #656d76;
+        }
+
+        .folder-icon {
+            margin-right: 6px;
+        }
+
+        .folder-children {
+            margin-left: 20px;
+        }
+
+        .collapsed .folder-children {
+            display: none;
+        }
+
+        .folder-toggle {
+            transform: rotate(90deg);
+            transition: transform 0.2s;
+            font-size: 10px;
+            margin-right: 4px;
+            color: #656d76;
+        }
+
+        .collapsed .folder-toggle {
+            transform: rotate(0deg);
+        }
+
+        .diff-container {
+            display: flex;
+            flex: 1;
+            height: 100%;
         }
 
         .diff-pane {
@@ -411,71 +519,646 @@
         <h1>Git Diff Viewer</h1>
     </div>
 
-    <div class="diff-container">
-        <div class="diff-pane" id="old-pane">
-            <div class="pane-header">Original</div>
-            <div id="old-content"></div>
+    <div class="main-container">
+        <div class="files-sidebar">
+            <div class="files-sidebar-header">
+                <span>Files changed</span>
+                <span class="files-count" id="files-count">0</span>
+            </div>
+            <div class="file-tree" id="file-tree"></div>
         </div>
-        <div class="diff-pane" id="new-pane">
-            <div class="pane-header">Modified</div>
-            <div id="new-content"></div>
+        
+        <div class="diff-container">
+            <div class="diff-pane" id="old-pane">
+                <div class="pane-header">Original</div>
+                <div id="old-content"></div>
+            </div>
+            <div class="diff-pane" id="new-pane">
+                <div class="pane-header">Modified</div>
+                <div id="new-content"></div>
+            </div>
         </div>
     </div>
 
     <script>
-        // Mock diff data structure
+        // Mock diff data structure with extensive changes to span multiple screen heights
         const mockDiff = {
             files: [{
+                path: '.github/workflows/ci.yml',
+                oldPath: '.github/workflows/ci.yml',
+                additions: 15,
+                deletions: 8,
+                chunks: [{
+                    oldStart: 1,
+                    oldLines: 25,
+                    newStart: 1,
+                    newLines: 32,
+                    lines: [
+                        { type: 'context', oldNum: 1, newNum: 1, content: 'name: CI' },
+                        { type: 'context', oldNum: 2, newNum: 2, content: '' },
+                        { type: 'context', oldNum: 3, newNum: 3, content: 'on:' },
+                        { type: 'context', oldNum: 4, newNum: 4, content: '  push:' },
+                        { type: 'context', oldNum: 5, newNum: 5, content: '    branches: [ main ]' },
+                        { type: 'context', oldNum: 6, newNum: 6, content: '  pull_request:' },
+                        { type: 'context', oldNum: 7, newNum: 7, content: '    branches: [ main ]' },
+                        { type: 'context', oldNum: 8, newNum: 8, content: '' },
+                        { type: 'context', oldNum: 9, newNum: 9, content: 'jobs:' },
+                        { type: 'context', oldNum: 10, newNum: 10, content: '  test:' },
+                        { type: 'context', oldNum: 11, newNum: 11, content: '    runs-on: ubuntu-latest' },
+                        { type: 'addition', oldNum: null, newNum: 12, content: '    strategy:' },
+                        { type: 'addition', oldNum: null, newNum: 13, content: '      matrix:' },
+                        { type: 'addition', oldNum: null, newNum: 14, content: '        python-version: [3.8, 3.9, "3.10", "3.11"]' },
+                        { type: 'context', oldNum: 12, newNum: 15, content: '    steps:' },
+                        { type: 'context', oldNum: 13, newNum: 16, content: '    - uses: actions/checkout@v3' },
+                        { type: 'deletion', oldNum: 14, newNum: null, content: '    - name: Set up Python 3.9' },
+                        { type: 'addition', oldNum: null, newNum: 17, content: '    - name: Set up Python ${{ matrix.python-version }}' },
+                        { type: 'context', oldNum: 15, newNum: 18, content: '      uses: actions/setup-python@v3' },
+                        { type: 'context', oldNum: 16, newNum: 19, content: '      with:' },
+                        { type: 'deletion', oldNum: 17, newNum: null, content: '        python-version: 3.9' },
+                        { type: 'addition', oldNum: null, newNum: 20, content: '        python-version: ${{ matrix.python-version }}' },
+                        { type: 'context', oldNum: 18, newNum: 21, content: '    - name: Install dependencies' },
+                        { type: 'context', oldNum: 19, newNum: 22, content: '      run: |' },
+                        { type: 'context', oldNum: 20, newNum: 23, content: '        python -m pip install --upgrade pip' },
+                        { type: 'deletion', oldNum: 21, newNum: null, content: '        pip install -r requirements.txt' },
+                        { type: 'addition', oldNum: null, newNum: 24, content: '        pip install -e .' },
+                        { type: 'addition', oldNum: null, newNum: 25, content: '        pip install pytest pytest-cov' },
+                        { type: 'context', oldNum: 22, newNum: 26, content: '    - name: Run tests' },
+                        { type: 'deletion', oldNum: 23, newNum: null, content: '      run: pytest' },
+                        { type: 'addition', oldNum: null, newNum: 27, content: '      run: pytest --cov=src --cov-report=xml' },
+                        { type: 'addition', oldNum: null, newNum: 28, content: '    - name: Upload coverage to Codecov' },
+                        { type: 'addition', oldNum: null, newNum: 29, content: '      uses: codecov/codecov-action@v3' },
+                        { type: 'addition', oldNum: null, newNum: 30, content: '      with:' },
+                        { type: 'addition', oldNum: null, newNum: 31, content: '        file: ./coverage.xml' },
+                        { type: 'context', oldNum: 24, newNum: 32, content: '' }
+                    ]
+                }]
+            }, {
                 path: '.github/workflows/release.yaml',
                 oldPath: '.github/workflows/release.yaml',
-                additions: 2,
-                deletions: 2,
+                additions: 25,
+                deletions: 12,
                 chunks: [{
-                    oldStart: 193,
-                    oldLines: 7,
-                    newStart: 193,
-                    newLines: 7,
+                    oldStart: 1,
+                    oldLines: 40,
+                    newStart: 1,
+                    newLines: 53,
                     lines: [
-                        { type: 'context', oldNum: 193, newNum: 193, content: '    gh release create "${{ steps.version.outputs.version }}"' },
-                        { type: 'context', oldNum: 194, newNum: 194, content: '      --repo "$GITHUB_REPOSITORY"' },
-                        { type: 'deletion', oldNum: 195, newNum: null, content: '      --title "$RELEASE_TITLE"' },
-                        { type: 'addition', oldNum: null, newNum: 195, content: '      --title "Release ${{ steps.version.outputs.version }}"' },
-                        { type: 'deletion', oldNum: 196, newNum: null, content: '      --notes "$RELEASE_NOTES"' },
-                        { type: 'addition', oldNum: null, newNum: 196, content: '      --notes "Automated release for version ${{ steps.version.outputs.version }}"' },
-                        { type: 'context', oldNum: 197, newNum: 197, content: '      --draft' }
+                        { type: 'context', oldNum: 1, newNum: 1, content: 'name: Release' },
+                        { type: 'context', oldNum: 2, newNum: 2, content: '' },
+                        { type: 'context', oldNum: 3, newNum: 3, content: 'on:' },
+                        { type: 'context', oldNum: 4, newNum: 4, content: '  push:' },
+                        { type: 'context', oldNum: 5, newNum: 5, content: '    tags:' },
+                        { type: 'context', oldNum: 6, newNum: 6, content: '      - "v*"' },
+                        { type: 'context', oldNum: 7, newNum: 7, content: '' },
+                        { type: 'context', oldNum: 8, newNum: 8, content: 'jobs:' },
+                        { type: 'context', oldNum: 9, newNum: 9, content: '  build:' },
+                        { type: 'context', oldNum: 10, newNum: 10, content: '    runs-on: ubuntu-latest' },
+                        { type: 'context', oldNum: 11, newNum: 11, content: '    steps:' },
+                        { type: 'context', oldNum: 12, newNum: 12, content: '    - uses: actions/checkout@v3' },
+                        { type: 'addition', oldNum: null, newNum: 13, content: '      with:' },
+                        { type: 'addition', oldNum: null, newNum: 14, content: '        fetch-depth: 0' },
+                        { type: 'context', oldNum: 13, newNum: 15, content: '    - name: Set up Python' },
+                        { type: 'context', oldNum: 14, newNum: 16, content: '      uses: actions/setup-python@v3' },
+                        { type: 'context', oldNum: 15, newNum: 17, content: '      with:' },
+                        { type: 'deletion', oldNum: 16, newNum: null, content: '        python-version: 3.9' },
+                        { type: 'addition', oldNum: null, newNum: 18, content: '        python-version: "3.11"' },
+                        { type: 'context', oldNum: 17, newNum: 19, content: '    - name: Install build dependencies' },
+                        { type: 'context', oldNum: 18, newNum: 20, content: '      run: |' },
+                        { type: 'context', oldNum: 19, newNum: 21, content: '        python -m pip install --upgrade pip' },
+                        { type: 'deletion', oldNum: 20, newNum: null, content: '        pip install build' },
+                        { type: 'addition', oldNum: null, newNum: 22, content: '        pip install build twine' },
+                        { type: 'context', oldNum: 21, newNum: 23, content: '    - name: Build package' },
+                        { type: 'context', oldNum: 22, newNum: 24, content: '      run: python -m build' },
+                        { type: 'addition', oldNum: null, newNum: 25, content: '    - name: Check package' },
+                        { type: 'addition', oldNum: null, newNum: 26, content: '      run: python -m twine check dist/*' },
+                        { type: 'context', oldNum: 23, newNum: 27, content: '    - name: Upload to PyPI' },
+                        { type: 'context', oldNum: 24, newNum: 28, content: '      env:' },
+                        { type: 'deletion', oldNum: 25, newNum: null, content: '        TWINE_USERNAME: __token__' },
+                        { type: 'deletion', oldNum: 26, newNum: null, content: '        TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}' },
+                        { type: 'addition', oldNum: null, newNum: 29, content: '        TWINE_USERNAME: __token__' },
+                        { type: 'addition', oldNum: null, newNum: 30, content: '        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}' },
+                        { type: 'context', oldNum: 27, newNum: 31, content: '      run: |' },
+                        { type: 'deletion', oldNum: 28, newNum: null, content: '        python -m twine upload dist/*' },
+                        { type: 'addition', oldNum: null, newNum: 32, content: '        python -m twine upload --repository pypi dist/*' },
+                        { type: 'addition', oldNum: null, newNum: 33, content: '    - name: Create GitHub Release' },
+                        { type: 'addition', oldNum: null, newNum: 34, content: '      env:' },
+                        { type: 'addition', oldNum: null, newNum: 35, content: '        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}' },
+                        { type: 'addition', oldNum: null, newNum: 36, content: '      run: |' },
+                        { type: 'addition', oldNum: null, newNum: 37, content: '        gh release create ${GITHUB_REF#refs/tags/} \\' },
+                        { type: 'addition', oldNum: null, newNum: 38, content: '          --title "Release ${GITHUB_REF#refs/tags/}" \\' },
+                        { type: 'addition', oldNum: null, newNum: 39, content: '          --notes-from-tag \\' },
+                        { type: 'addition', oldNum: null, newNum: 40, content: '          dist/*' }
+                    ]
+                }]
+            }, {
+                path: 'README.md',
+                oldPath: 'README.md',
+                additions: 45,
+                deletions: 18,
+                chunks: [{
+                    oldStart: 1,
+                    oldLines: 35,
+                    newStart: 1,
+                    newLines: 62,
+                    lines: [
+                        { type: 'context', oldNum: 1, newNum: 1, content: '# My Project' },
+                        { type: 'context', oldNum: 2, newNum: 2, content: '' },
+                        { type: 'deletion', oldNum: 3, newNum: null, content: 'A simple Python project.' },
+                        { type: 'addition', oldNum: null, newNum: 3, content: 'A comprehensive Python project for data processing and analysis.' },
+                        { type: 'context', oldNum: 4, newNum: 4, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 5, content: '[![CI](https://github.com/user/repo/workflows/CI/badge.svg)](https://github.com/user/repo/actions)' },
+                        { type: 'addition', oldNum: null, newNum: 6, content: '[![codecov](https://codecov.io/gh/user/repo/branch/main/graph/badge.svg)](https://codecov.io/gh/user/repo)' },
+                        { type: 'addition', oldNum: null, newNum: 7, content: '[![PyPI version](https://badge.fury.io/py/myproject.svg)](https://badge.fury.io/py/myproject)' },
+                        { type: 'addition', oldNum: null, newNum: 8, content: '' },
+                        { type: 'context', oldNum: 5, newNum: 9, content: '## Installation' },
+                        { type: 'context', oldNum: 6, newNum: 10, content: '' },
+                        { type: 'deletion', oldNum: 7, newNum: null, content: 'Install with pip:' },
+                        { type: 'addition', oldNum: null, newNum: 11, content: 'Install from PyPI:' },
+                        { type: 'context', oldNum: 8, newNum: 12, content: '' },
+                        { type: 'context', oldNum: 9, newNum: 13, content: '```bash' },
+                        { type: 'context', oldNum: 10, newNum: 14, content: 'pip install myproject' },
+                        { type: 'context', oldNum: 11, newNum: 15, content: '```' },
+                        { type: 'context', oldNum: 12, newNum: 16, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 17, content: 'Or install from source:' },
+                        { type: 'addition', oldNum: null, newNum: 18, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 19, content: '```bash' },
+                        { type: 'addition', oldNum: null, newNum: 20, content: 'git clone https://github.com/user/repo.git' },
+                        { type: 'addition', oldNum: null, newNum: 21, content: 'cd repo' },
+                        { type: 'addition', oldNum: null, newNum: 22, content: 'pip install -e .' },
+                        { type: 'addition', oldNum: null, newNum: 23, content: '```' },
+                        { type: 'addition', oldNum: null, newNum: 24, content: '' },
+                        { type: 'context', oldNum: 13, newNum: 25, content: '## Usage' },
+                        { type: 'context', oldNum: 14, newNum: 26, content: '' },
+                        { type: 'deletion', oldNum: 15, newNum: null, content: 'Basic usage:' },
+                        { type: 'addition', oldNum: null, newNum: 27, content: 'Here are some examples of how to use this project:' },
+                        { type: 'addition', oldNum: null, newNum: 28, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 29, content: '### Basic Usage' },
+                        { type: 'context', oldNum: 16, newNum: 30, content: '' },
+                        { type: 'context', oldNum: 17, newNum: 31, content: '```python' },
+                        { type: 'context', oldNum: 18, newNum: 32, content: 'from myproject import main' },
+                        { type: 'context', oldNum: 19, newNum: 33, content: '' },
+                        { type: 'context', oldNum: 20, newNum: 34, content: 'main()' },
+                        { type: 'context', oldNum: 21, newNum: 35, content: '```' },
+                        { type: 'context', oldNum: 22, newNum: 36, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 37, content: '### Advanced Usage' },
+                        { type: 'addition', oldNum: null, newNum: 38, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 39, content: '```python' },
+                        { type: 'addition', oldNum: null, newNum: 40, content: 'from myproject.utils import helpers' },
+                        { type: 'addition', oldNum: null, newNum: 41, content: 'from myproject.core import processor' },
+                        { type: 'addition', oldNum: null, newNum: 42, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 43, content: '# Process some data' },
+                        { type: 'addition', oldNum: null, newNum: 44, content: 'data = helpers.load_data("data.json")' },
+                        { type: 'addition', oldNum: null, newNum: 45, content: 'result = processor.process(data)' },
+                        { type: 'addition', oldNum: null, newNum: 46, content: 'print(result)' },
+                        { type: 'addition', oldNum: null, newNum: 47, content: '```' },
+                        { type: 'addition', oldNum: null, newNum: 48, content: '' },
+                        { type: 'context', oldNum: 23, newNum: 49, content: '## Contributing' },
+                        { type: 'context', oldNum: 24, newNum: 50, content: '' },
+                        { type: 'deletion', oldNum: 25, newNum: null, content: 'Pull requests are welcome.' },
+                        { type: 'addition', oldNum: null, newNum: 51, content: 'Contributions are welcome! Please feel free to submit a Pull Request.' },
+                        { type: 'addition', oldNum: null, newNum: 52, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 53, content: '### Development Setup' },
+                        { type: 'addition', oldNum: null, newNum: 54, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 55, content: '1. Clone the repository' },
+                        { type: 'addition', oldNum: null, newNum: 56, content: '2. Install development dependencies: `pip install -e ".[dev]"`' },
+                        { type: 'addition', oldNum: null, newNum: 57, content: '3. Run tests: `pytest`' },
+                        { type: 'addition', oldNum: null, newNum: 58, content: '4. Run linting: `flake8 src tests`' },
+                        { type: 'context', oldNum: 26, newNum: 59, content: '' },
+                        { type: 'context', oldNum: 27, newNum: 60, content: '## License' },
+                        { type: 'context', oldNum: 28, newNum: 61, content: '' },
+                        { type: 'context', oldNum: 29, newNum: 62, content: 'MIT License' }
                     ]
                 }]
             }, {
                 path: 'src/main.py',
                 oldPath: 'src/main.py',
-                additions: 3,
-                deletions: 1,
+                additions: 25,
+                deletions: 8,
                 chunks: [{
                     oldStart: 1,
-                    oldLines: 5,
+                    oldLines: 15,
                     newStart: 1,
-                    newLines: 7,
+                    newLines: 32,
                     lines: [
                         { type: 'context', oldNum: 1, newNum: 1, content: 'import os' },
                         { type: 'context', oldNum: 2, newNum: 2, content: 'import sys' },
                         { type: 'addition', oldNum: null, newNum: 3, content: 'import json' },
-                        { type: 'addition', oldNum: null, newNum: 4, content: 'from typing import Dict, List' },
-                        { type: 'context', oldNum: 3, newNum: 5, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 4, content: 'import argparse' },
+                        { type: 'addition', oldNum: null, newNum: 5, content: 'from pathlib import Path' },
+                        { type: 'addition', oldNum: null, newNum: 6, content: 'from typing import Dict, List, Optional' },
+                        { type: 'context', oldNum: 3, newNum: 7, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 8, content: 'from .utils.helpers import format_string, validate_input' },
+                        { type: 'addition', oldNum: null, newNum: 9, content: 'from .core.processor import DataProcessor' },
+                        { type: 'addition', oldNum: null, newNum: 10, content: '' },
                         { type: 'deletion', oldNum: 4, newNum: null, content: 'def main():' },
-                        { type: 'addition', oldNum: null, newNum: 6, content: 'def main() -> None:' },
-                        { type: 'context', oldNum: 5, newNum: 7, content: '    print("Hello, World!")' }
+                        { type: 'addition', oldNum: null, newNum: 11, content: 'def setup_logging() -> None:' },
+                        { type: 'addition', oldNum: null, newNum: 12, content: '    """Set up logging configuration."""' },
+                        { type: 'addition', oldNum: null, newNum: 13, content: '    import logging' },
+                        { type: 'addition', oldNum: null, newNum: 14, content: '    logging.basicConfig(' },
+                        { type: 'addition', oldNum: null, newNum: 15, content: '        level=logging.INFO,' },
+                        { type: 'addition', oldNum: null, newNum: 16, content: '        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"' },
+                        { type: 'addition', oldNum: null, newNum: 17, content: '    )' },
+                        { type: 'addition', oldNum: null, newNum: 18, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 19, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 20, content: 'def parse_args() -> argparse.Namespace:' },
+                        { type: 'addition', oldNum: null, newNum: 21, content: '    """Parse command line arguments."""' },
+                        { type: 'addition', oldNum: null, newNum: 22, content: '    parser = argparse.ArgumentParser(description="Process some data")' },
+                        { type: 'addition', oldNum: null, newNum: 23, content: '    parser.add_argument("--input", "-i", help="Input file path")' },
+                        { type: 'addition', oldNum: null, newNum: 24, content: '    parser.add_argument("--output", "-o", help="Output file path")' },
+                        { type: 'addition', oldNum: null, newNum: 25, content: '    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")' },
+                        { type: 'addition', oldNum: null, newNum: 26, content: '    return parser.parse_args()' },
+                        { type: 'addition', oldNum: null, newNum: 27, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 28, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 29, content: 'def main() -> None:' },
+                        { type: 'addition', oldNum: null, newNum: 30, content: '    """Main entry point."""' },
+                        { type: 'addition', oldNum: null, newNum: 31, content: '    setup_logging()' },
+                        { type: 'addition', oldNum: null, newNum: 32, content: '    args = parse_args()' },
+                        { type: 'context', oldNum: 5, newNum: 33, content: '    print("Hello, World!")' },
+                        { type: 'deletion', oldNum: 6, newNum: null, content: '' },
+                        { type: 'deletion', oldNum: 7, newNum: null, content: '' },
+                        { type: 'deletion', oldNum: 8, newNum: null, content: 'if __name__ == "__main__":' },
+                        { type: 'deletion', oldNum: 9, newNum: null, content: '    main()' }
+                    ]
+                }]
+            }, {
+                path: 'src/utils/helpers.py',
+                oldPath: 'src/utils/helpers.py',
+                additions: 35,
+                deletions: 0,
+                chunks: [{
+                    oldStart: 1,
+                    oldLines: 1,
+                    newStart: 1,
+                    newLines: 36,
+                    lines: [
+                        { type: 'addition', oldNum: null, newNum: 1, content: '"""Utility functions for data processing."""' },
+                        { type: 'addition', oldNum: null, newNum: 2, content: 'import json' },
+                        { type: 'addition', oldNum: null, newNum: 3, content: 'import logging' },
+                        { type: 'addition', oldNum: null, newNum: 4, content: 'from pathlib import Path' },
+                        { type: 'addition', oldNum: null, newNum: 5, content: 'from typing import Any, Dict, List, Optional, Union' },
+                        { type: 'addition', oldNum: null, newNum: 6, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 7, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 8, content: 'logger = logging.getLogger(__name__)' },
+                        { type: 'addition', oldNum: null, newNum: 9, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 10, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 11, content: 'def format_string(s: str) -> str:' },
+                        { type: 'addition', oldNum: null, newNum: 12, content: '    """Format a string by stripping whitespace and converting to lowercase."""' },
+                        { type: 'addition', oldNum: null, newNum: 13, content: '    return s.strip().lower()' },
+                        { type: 'addition', oldNum: null, newNum: 14, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 15, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 16, content: 'def validate_input(data: Any) -> bool:' },
+                        { type: 'addition', oldNum: null, newNum: 17, content: '    """Validate that input data is not None."""' },
+                        { type: 'addition', oldNum: null, newNum: 18, content: '    return data is not None' },
+                        { type: 'addition', oldNum: null, newNum: 19, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 20, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 21, content: 'def load_data(file_path: Union[str, Path]) -> Dict[str, Any]:' },
+                        { type: 'addition', oldNum: null, newNum: 22, content: '    """Load JSON data from a file."""' },
+                        { type: 'addition', oldNum: null, newNum: 23, content: '    path = Path(file_path)' },
+                        { type: 'addition', oldNum: null, newNum: 24, content: '    if not path.exists():' },
+                        { type: 'addition', oldNum: null, newNum: 25, content: '        raise FileNotFoundError(f"File not found: {path}")' },
+                        { type: 'addition', oldNum: null, newNum: 26, content: '    ' },
+                        { type: 'addition', oldNum: null, newNum: 27, content: '    with path.open("r", encoding="utf-8") as f:' },
+                        { type: 'addition', oldNum: null, newNum: 28, content: '        try:' },
+                        { type: 'addition', oldNum: null, newNum: 29, content: '            return json.load(f)' },
+                        { type: 'addition', oldNum: null, newNum: 30, content: '        except json.JSONDecodeError as e:' },
+                        { type: 'addition', oldNum: null, newNum: 31, content: '            logger.error(f"Failed to parse JSON from {path}: {e}")' },
+                        { type: 'addition', oldNum: null, newNum: 32, content: '            raise' },
+                        { type: 'addition', oldNum: null, newNum: 33, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 34, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 35, content: 'def save_data(data: Dict[str, Any], file_path: Union[str, Path]) -> None:' },
+                        { type: 'addition', oldNum: null, newNum: 36, content: '    """Save data to a JSON file."""' },
+                        { type: 'addition', oldNum: null, newNum: 37, content: '    path = Path(file_path)' },
+                        { type: 'addition', oldNum: null, newNum: 38, content: '    path.parent.mkdir(parents=True, exist_ok=True)' },
+                        { type: 'addition', oldNum: null, newNum: 39, content: '    ' },
+                        { type: 'addition', oldNum: null, newNum: 40, content: '    with path.open("w", encoding="utf-8") as f:' },
+                        { type: 'addition', oldNum: null, newNum: 41, content: '        json.dump(data, f, indent=2, ensure_ascii=False)' },
+                        { type: 'addition', oldNum: null, newNum: 42, content: '    logger.info(f"Data saved to {path}")' }
+                    ]
+                }]
+            }, {
+                path: 'src/core/__init__.py',
+                oldPath: null,
+                additions: 1,
+                deletions: 0,
+                chunks: [{
+                    oldStart: 0,
+                    oldLines: 0,
+                    newStart: 1,
+                    newLines: 1,
+                    lines: [
+                        { type: 'addition', oldNum: null, newNum: 1, content: '"""Core processing modules."""' }
+                    ]
+                }]
+            }, {
+                path: 'src/core/processor.py',
+                oldPath: null,
+                additions: 42,
+                deletions: 0,
+                chunks: [{
+                    oldStart: 0,
+                    oldLines: 0,
+                    newStart: 1,
+                    newLines: 42,
+                    lines: [
+                        { type: 'addition', oldNum: null, newNum: 1, content: '"""Data processing module."""' },
+                        { type: 'addition', oldNum: null, newNum: 2, content: 'import logging' },
+                        { type: 'addition', oldNum: null, newNum: 3, content: 'from typing import Any, Dict, List' },
+                        { type: 'addition', oldNum: null, newNum: 4, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 5, content: 'from ..utils.helpers import validate_input' },
+                        { type: 'addition', oldNum: null, newNum: 6, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 7, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 8, content: 'logger = logging.getLogger(__name__)' },
+                        { type: 'addition', oldNum: null, newNum: 9, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 10, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 11, content: 'class DataProcessor:' },
+                        { type: 'addition', oldNum: null, newNum: 12, content: '    """A class for processing data."""' },
+                        { type: 'addition', oldNum: null, newNum: 13, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 14, content: '    def __init__(self, config: Dict[str, Any] = None):' },
+                        { type: 'addition', oldNum: null, newNum: 15, content: '        """Initialize the processor with optional configuration."""' },
+                        { type: 'addition', oldNum: null, newNum: 16, content: '        self.config = config or {}' },
+                        { type: 'addition', oldNum: null, newNum: 17, content: '        logger.info("DataProcessor initialized")' },
+                        { type: 'addition', oldNum: null, newNum: 18, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 19, content: '    def process(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:' },
+                        { type: 'addition', oldNum: null, newNum: 20, content: '        """Process a list of data items."""' },
+                        { type: 'addition', oldNum: null, newNum: 21, content: '        if not validate_input(data):' },
+                        { type: 'addition', oldNum: null, newNum: 22, content: '            raise ValueError("Invalid input data")' },
+                        { type: 'addition', oldNum: null, newNum: 23, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 24, content: '        logger.info(f"Processing {len(data)} items")' },
+                        { type: 'addition', oldNum: null, newNum: 25, content: '        result = []' },
+                        { type: 'addition', oldNum: null, newNum: 26, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 27, content: '        for i, item in enumerate(data):' },
+                        { type: 'addition', oldNum: null, newNum: 28, content: '            try:' },
+                        { type: 'addition', oldNum: null, newNum: 29, content: '                processed_item = self._process_item(item)' },
+                        { type: 'addition', oldNum: null, newNum: 30, content: '                result.append(processed_item)' },
+                        { type: 'addition', oldNum: null, newNum: 31, content: '            except Exception as e:' },
+                        { type: 'addition', oldNum: null, newNum: 32, content: '                logger.error(f"Error processing item {i}: {e}")' },
+                        { type: 'addition', oldNum: null, newNum: 33, content: '                continue' },
+                        { type: 'addition', oldNum: null, newNum: 34, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 35, content: '        logger.info(f"Processed {len(result)} items successfully")' },
+                        { type: 'addition', oldNum: null, newNum: 36, content: '        return result' },
+                        { type: 'addition', oldNum: null, newNum: 37, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 38, content: '    def _process_item(self, item: Dict[str, Any]) -> Dict[str, Any]:' },
+                        { type: 'addition', oldNum: null, newNum: 39, content: '        """Process a single data item."""' },
+                        { type: 'addition', oldNum: null, newNum: 40, content: '        # Add processing logic here' },
+                        { type: 'addition', oldNum: null, newNum: 41, content: '        return {**item, "processed": True}' }
+                    ]
+                }]
+            }, {
+                path: 'tests/test_main.py',
+                oldPath: 'tests/test_main.py',
+                additions: 20,
+                deletions: 5,
+                chunks: [{
+                    oldStart: 1,
+                    oldLines: 15,
+                    newStart: 1,
+                    newLines: 30,
+                    lines: [
+                        { type: 'addition', oldNum: null, newNum: 1, content: '"""Tests for main module."""' },
+                        { type: 'addition', oldNum: null, newNum: 2, content: 'import pytest' },
+                        { type: 'addition', oldNum: null, newNum: 3, content: 'from unittest.mock import patch, MagicMock' },
+                        { type: 'context', oldNum: 1, newNum: 4, content: '' },
+                        { type: 'deletion', oldNum: 2, newNum: null, content: 'from src.main import main' },
+                        { type: 'addition', oldNum: null, newNum: 5, content: 'from src.main import main, parse_args, setup_logging' },
+                        { type: 'context', oldNum: 3, newNum: 6, content: '' },
+                        { type: 'context', oldNum: 4, newNum: 7, content: '' },
+                        { type: 'context', oldNum: 5, newNum: 8, content: 'def test_main():' },
+                        { type: 'deletion', oldNum: 6, newNum: null, content: '    """Test main function."""' },
+                        { type: 'addition', oldNum: null, newNum: 9, content: '    """Test main function runs without error."""' },
+                        { type: 'addition', oldNum: null, newNum: 10, content: '    with patch("src.main.setup_logging"), patch("src.main.parse_args"):' },
+                        { type: 'addition', oldNum: null, newNum: 11, content: '        with patch("builtins.print") as mock_print:' },
+                        { type: 'addition', oldNum: null, newNum: 12, content: '            main()' },
+                        { type: 'addition', oldNum: null, newNum: 13, content: '            mock_print.assert_called_once_with("Hello, World!")' },
+                        { type: 'context', oldNum: 7, newNum: 14, content: '' },
+                        { type: 'deletion', oldNum: 8, newNum: null, content: '    # Test that main returns None' },
+                        { type: 'deletion', oldNum: 9, newNum: null, content: '    result = main()' },
+                        { type: 'context', oldNum: 10, newNum: 15, content: '' },
+                        { type: 'deletion', oldNum: 11, newNum: null, content: '    assert result is None' },
+                        { type: 'addition', oldNum: null, newNum: 16, content: 'def test_parse_args_default():' },
+                        { type: 'addition', oldNum: null, newNum: 17, content: '    """Test parse_args with default arguments."""' },
+                        { type: 'addition', oldNum: null, newNum: 18, content: '    with patch("sys.argv", ["script.py"]):' },
+                        { type: 'addition', oldNum: null, newNum: 19, content: '        args = parse_args()' },
+                        { type: 'addition', oldNum: null, newNum: 20, content: '        assert args.input is None' },
+                        { type: 'addition', oldNum: null, newNum: 21, content: '        assert args.output is None' },
+                        { type: 'addition', oldNum: null, newNum: 22, content: '        assert args.verbose is False' },
+                        { type: 'addition', oldNum: null, newNum: 23, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 24, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 25, content: 'def test_setup_logging():' },
+                        { type: 'addition', oldNum: null, newNum: 26, content: '    """Test setup_logging configures logging properly."""' },
+                        { type: 'addition', oldNum: null, newNum: 27, content: '    with patch("logging.basicConfig") as mock_config:' },
+                        { type: 'addition', oldNum: null, newNum: 28, content: '        setup_logging()' },
+                        { type: 'addition', oldNum: null, newNum: 29, content: '        mock_config.assert_called_once()' },
+                        { type: 'context', oldNum: 12, newNum: 30, content: '' }
+                    ]
+                }]
+            }, {
+                path: 'tests/test_helpers.py',
+                oldPath: null,
+                additions: 45,
+                deletions: 0,
+                chunks: [{
+                    oldStart: 0,
+                    oldLines: 0,
+                    newStart: 1,
+                    newLines: 45,
+                    lines: [
+                        { type: 'addition', oldNum: null, newNum: 1, content: '"""Tests for helpers module."""' },
+                        { type: 'addition', oldNum: null, newNum: 2, content: 'import json' },
+                        { type: 'addition', oldNum: null, newNum: 3, content: 'import tempfile' },
+                        { type: 'addition', oldNum: null, newNum: 4, content: 'from pathlib import Path' },
+                        { type: 'addition', oldNum: null, newNum: 5, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 6, content: 'import pytest' },
+                        { type: 'addition', oldNum: null, newNum: 7, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 8, content: 'from src.utils.helpers import format_string, validate_input, load_data, save_data' },
+                        { type: 'addition', oldNum: null, newNum: 9, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 10, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 11, content: 'def test_format_string():' },
+                        { type: 'addition', oldNum: null, newNum: 12, content: '    """Test format_string function."""' },
+                        { type: 'addition', oldNum: null, newNum: 13, content: '    assert format_string("  Hello World  ") == "hello world"' },
+                        { type: 'addition', oldNum: null, newNum: 14, content: '    assert format_string("TEST") == "test"' },
+                        { type: 'addition', oldNum: null, newNum: 15, content: '    assert format_string("") == ""' },
+                        { type: 'addition', oldNum: null, newNum: 16, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 17, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 18, content: 'def test_validate_input():' },
+                        { type: 'addition', oldNum: null, newNum: 19, content: '    """Test validate_input function."""' },
+                        { type: 'addition', oldNum: null, newNum: 20, content: '    assert validate_input("test") is True' },
+                        { type: 'addition', oldNum: null, newNum: 21, content: '    assert validate_input([]) is True' },
+                        { type: 'addition', oldNum: null, newNum: 22, content: '    assert validate_input({}) is True' },
+                        { type: 'addition', oldNum: null, newNum: 23, content: '    assert validate_input(None) is False' },
+                        { type: 'addition', oldNum: null, newNum: 24, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 25, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 26, content: 'def test_load_data():' },
+                        { type: 'addition', oldNum: null, newNum: 27, content: '    """Test load_data function."""' },
+                        { type: 'addition', oldNum: null, newNum: 28, content: '    test_data = {"key": "value", "number": 42}' },
+                        { type: 'addition', oldNum: null, newNum: 29, content: '    ' },
+                        { type: 'addition', oldNum: null, newNum: 30, content: '    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:' },
+                        { type: 'addition', oldNum: null, newNum: 31, content: '        json.dump(test_data, f)' },
+                        { type: 'addition', oldNum: null, newNum: 32, content: '        temp_path = f.name' },
+                        { type: 'addition', oldNum: null, newNum: 33, content: '    ' },
+                        { type: 'addition', oldNum: null, newNum: 34, content: '    try:' },
+                        { type: 'addition', oldNum: null, newNum: 35, content: '        loaded_data = load_data(temp_path)' },
+                        { type: 'addition', oldNum: null, newNum: 36, content: '        assert loaded_data == test_data' },
+                        { type: 'addition', oldNum: null, newNum: 37, content: '    finally:' },
+                        { type: 'addition', oldNum: null, newNum: 38, content: '        Path(temp_path).unlink()' },
+                        { type: 'addition', oldNum: null, newNum: 39, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 40, content: '' },
+                        { type: 'addition', oldNum: null, newNum: 41, content: 'def test_load_data_file_not_found():' },
+                        { type: 'addition', oldNum: null, newNum: 42, content: '    """Test load_data with non-existent file."""' },
+                        { type: 'addition', oldNum: null, newNum: 43, content: '    with pytest.raises(FileNotFoundError):' },
+                        { type: 'addition', oldNum: null, newNum: 44, content: '        load_data("nonexistent.json")' }
                     ]
                 }]
             }]
         };
 
+        // Build hierarchical file tree structure
+        function buildFileTree(files) {
+            const tree = {};
+            
+            files.forEach(file => {
+                const parts = file.path.split('/');
+                let current = tree;
+                
+                for (let i = 0; i < parts.length; i++) {
+                    const part = parts[i];
+                    const isFile = i === parts.length - 1;
+                    
+                    if (!current[part]) {
+                        current[part] = isFile ? {
+                            type: 'file',
+                            data: file,
+                            path: file.path
+                        } : {
+                            type: 'folder',
+                            children: {},
+                            expanded: true
+                        };
+                    }
+                    
+                    if (!isFile) {
+                        current = current[part].children;
+                    }
+                }
+            });
+            
+            return tree;
+        }
+
+        // Render file tree
+        function renderFileTree(tree, container, depth = 0) {
+            const keys = Object.keys(tree).sort((a, b) => {
+                const aIsFile = tree[a].type === 'file';
+                const bIsFile = tree[b].type === 'file';
+                
+                if (aIsFile !== bIsFile) {
+                    return aIsFile ? 1 : -1; // Folders first
+                }
+                
+                return a.localeCompare(b);
+            });
+            
+            keys.forEach(key => {
+                const item = tree[key];
+                const itemElement = document.createElement('div');
+                
+                if (item.type === 'file') {
+                    itemElement.className = 'file-tree-item';
+                    itemElement.style.paddingLeft = `${16 + depth * 20}px`;
+                    itemElement.innerHTML = `
+                        <svg class="file-icon" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M2 1.75A1.75 1.75 0 013.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0113.25 16h-9.5A1.75 1.75 0 012 14.25V1.75zm1.75-.25a.25.25 0 00-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 00.25-.25V6h-2.75A1.75 1.75 0 019 4.25V1.5H3.75z"/>
+                        </svg>
+                        <span class="file-name">${key}</span>
+                        <span class="file-changes">
+                            <span class="additions">+${item.data.additions}</span>
+                            <span class="deletions">−${item.data.deletions}</span>
+                        </span>
+                    `;
+                    
+                    // Add click handler to scroll to file
+                    itemElement.addEventListener('click', () => {
+                        scrollToFile(item.data.path);
+                        
+                        // Update active state
+                        document.querySelectorAll('.file-tree-item').forEach(el => {
+                            el.classList.remove('active');
+                        });
+                        itemElement.classList.add('active');
+                    });
+                    
+                } else {
+                    itemElement.className = 'file-tree-item folder-item';
+                    itemElement.style.paddingLeft = `${16 + depth * 20}px`;
+                    const expanded = item.expanded ? '' : 'collapsed';
+                    itemElement.innerHTML = `
+                        <span class="folder-toggle">▶</span>
+                        <svg class="file-icon folder-icon" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M1.75 2A1.75 1.75 0 000 3.75v8.5C0 13.216.784 14 1.75 14h12.5A1.75 1.75 0 0016 12.25v-8.5A1.75 1.75 0 0014.25 2H7.5L6.25.75A1.75 1.75 0 005.086.25H1.75z"/>
+                        </svg>
+                        <span class="file-name">${key}</span>
+                    `;
+                    
+                    // Create folder children container
+                    const childrenContainer = document.createElement('div');
+                    childrenContainer.className = `folder-children ${expanded}`;
+                    
+                    // Add click handler for folder toggle
+                    itemElement.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const isExpanded = !childrenContainer.classList.contains('collapsed');
+                        
+                        if (isExpanded) {
+                            childrenContainer.classList.add('collapsed');
+                            itemElement.classList.add('collapsed');
+                        } else {
+                            childrenContainer.classList.remove('collapsed');
+                            itemElement.classList.remove('collapsed');
+                        }
+                        
+                        item.expanded = !isExpanded;
+                    });
+                    
+                    container.appendChild(itemElement);
+                    renderFileTree(item.children, childrenContainer, depth + 1);
+                    container.appendChild(childrenContainer);
+                    return;
+                }
+                
+                container.appendChild(itemElement);
+            });
+        }
+
+        // Scroll to specific file in diff view
+        function scrollToFile(filePath) {
+            const fileHeaders = document.querySelectorAll('.file-path');
+            for (const header of fileHeaders) {
+                if (header.textContent === filePath) {
+                    header.closest('.file-section').scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                    break;
+                }
+            }
+        }
+
         // Render diff content
         function renderDiff(diff) {
             const oldContent = document.getElementById('old-content');
             const newContent = document.getElementById('new-content');
+            const fileTree = document.getElementById('file-tree');
+            const filesCount = document.getElementById('files-count');
             
             oldContent.innerHTML = '';
             newContent.innerHTML = '';
+            fileTree.innerHTML = '';
+            
+            // Update files count
+            filesCount.textContent = diff.files.length;
+            
+            // Build and render file tree
+            const tree = buildFileTree(diff.files);
+            renderFileTree(tree, fileTree);
 
             diff.files.forEach(file => {
                 // Create file sections
