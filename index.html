@@ -1446,17 +1446,34 @@
             }
             
             async getDiff(options = {}) {
-                const { commit, range, staged = false, includeWorkingDir = false } = options;
-                const params = new URLSearchParams();
+                const { commit, range } = options;
                 
+                if (!commit && !range) {
+                    throw new Error("Must specify either 'commit' or 'range'");
+                }
+                
+                if (commit && range) {
+                    throw new Error("Cannot specify both 'commit' and 'range'");
+                }
+                
+                const params = new URLSearchParams();
                 if (commit) params.append('commit', commit);
                 if (range) params.append('range', range);
-                if (staged) params.append('staged', 'true');
-                if (includeWorkingDir) params.append('include_working_dir', 'true');
                 
                 const response = await fetch(`${this.baseUrl}/api/diff?${params}`);
                 if (!response.ok) {
                     throw new Error(`Failed to fetch diff: ${response.statusText}`);
+                }
+                return await response.json();
+            }
+            
+            async getLiveDiff(since = 'HEAD') {
+                const params = new URLSearchParams();
+                params.append('since', since);
+                
+                const response = await fetch(`${this.baseUrl}/api/diff/live?${params}`);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch live diff: ${response.statusText}`);
                 }
                 return await response.json();
             }
@@ -1995,8 +2012,8 @@
                 // Load diff data from API (fall back to mock if API fails)
                 let diffData;
                 try {
-                    // Default to showing working directory changes
-                    diffData = await apiClient.getDiff();
+                    // Default to showing live changes since HEAD
+                    diffData = await apiClient.getLiveDiff();
                 } catch (error) {
                     console.warn('API not available, using mock data:', error);
                     diffData = mockDiff;

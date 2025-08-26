@@ -39,25 +39,42 @@ async def read_index() -> FileResponse:
 @app.get("/api/diff")
 async def get_diff(
     commit: Optional[str] = None,
-    range: Optional[str] = None, 
-    staged: bool = False,
-    include_working_dir: bool = False
+    range: Optional[str] = None
 ) -> GitDiff:
-    """Get diff data for a commit, range, or current changes.
+    """Get diff data for a commit or commit range.
     
     Parameters:
-    - commit: Show changes for a specific commit (e.g., 'abc123')
-    - range: Show changes for a commit range (e.g., 'main..feature' or 'abc123..def456')
-    - staged: Show staged changes only
-    - include_working_dir: Include working directory changes (works with commit or range)
+    - commit: Show changes for a specific commit (e.g., 'abc123', 'HEAD', 'main')
+    - range: Show changes for a commit range (e.g., 'main..feature', 'abc123..def456')
+    
+    Note: Exactly one of commit or range must be specified.
+    """
+    if not commit and not range:
+        raise HTTPException(status_code=400, detail="Must specify either 'commit' or 'range' parameter")
+    
+    if commit and range:
+        raise HTTPException(status_code=400, detail="Cannot specify both 'commit' and 'range' parameters")
+    
+    try:
+        if commit:
+            return git_service.get_commit_diff(commit)
+        else:
+            assert range is not None  # We've already validated this above
+            return git_service.get_range_diff(range)
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/diff/live")
+async def get_live_diff(since: str = "HEAD") -> GitDiff:
+    """Get diff between current filesystem state and a commit.
+    
+    Parameters:
+    - since: The commit to compare against (defaults to 'HEAD')
+    
+    This includes both staged and unstaged changes in the working directory.
     """
     try:
-        return git_service.get_diff(
-            commit_hash=commit,
-            commit_range=range,
-            staged=staged,
-            include_working_dir=include_working_dir
-        )
+        return git_service.get_live_diff(since)
     except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
