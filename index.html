@@ -1138,13 +1138,20 @@
                     if (header.textContent === filePath) {
                         const fileSection = header.closest('.file-section');
                         
-                        // Get the pane header height to account for it
+                        // Get the pane header to calculate its bottom position
                         const paneHeader = pane.querySelector('.pane-header');
-                        const paneHeaderHeight = paneHeader ? paneHeader.offsetHeight : 0;
                         
-                        // Calculate absolute position of the file section within the scrollable content
-                        // offsetTop gives us the position relative to the offsetParent (the scrollable container)
-                        const targetScrollTop = fileSection.offsetTop - paneHeaderHeight;
+                        // Get positions relative to the pane container
+                        const paneRect = pane.getBoundingClientRect();
+                        const headerRect = paneHeader.getBoundingClientRect();
+                        const fileSectionRect = fileSection.getBoundingClientRect();
+                        
+                        // Calculate where to scroll so file appears just below the pane header
+                        const headerBottom = headerRect.bottom - paneRect.top;
+                        const currentFileTop = fileSectionRect.top - paneRect.top;
+                        const scrollAdjustment = currentFileTop - headerBottom;
+                        
+                        const targetScrollTop = pane.scrollTop + scrollAdjustment;
                         
                         // Smooth scroll to the calculated position
                         pane.scrollTo({
