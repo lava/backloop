@@ -1130,16 +1130,31 @@
 
         // Scroll to specific file in diff view
         function scrollToFile(filePath) {
-            const fileHeaders = document.querySelectorAll('.file-path');
-            for (const header of fileHeaders) {
-                if (header.textContent === filePath) {
-                    header.closest('.file-section').scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start'
-                    });
-                    break;
+            const diffPanes = [document.getElementById('old-pane'), document.getElementById('new-pane')];
+            
+            diffPanes.forEach(pane => {
+                const fileHeaders = pane.querySelectorAll('.file-path');
+                for (const header of fileHeaders) {
+                    if (header.textContent === filePath) {
+                        const fileSection = header.closest('.file-section');
+                        
+                        // Get the pane header height to account for it
+                        const paneHeader = pane.querySelector('.pane-header');
+                        const paneHeaderHeight = paneHeader ? paneHeader.offsetHeight : 0;
+                        
+                        // Calculate absolute position of the file section within the scrollable content
+                        // offsetTop gives us the position relative to the offsetParent (the scrollable container)
+                        const targetScrollTop = fileSection.offsetTop - paneHeaderHeight;
+                        
+                        // Smooth scroll to the calculated position
+                        pane.scrollTo({
+                            top: targetScrollTop,
+                            behavior: 'smooth'
+                        });
+                        break;
+                    }
                 }
-            }
+            });
         }
 
         // Render diff content
