@@ -37,6 +37,7 @@ class DiffFile(BaseModel):
     chunks: List[DiffChunk]
     is_binary: bool = False
     is_renamed: bool = False
+    status: Optional[str] = None
 
 
 class GitDiff(BaseModel):

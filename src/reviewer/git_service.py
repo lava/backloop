@@ -109,6 +109,10 @@ class GitService:
             # File header
             if line.startswith('diff --git'):
                 if current_file:
+                    # Finalize any pending chunk before finalizing the file
+                    if current_chunk:
+                        current_file['chunks'].append(self._finalize_chunk(current_chunk))
+                        current_chunk = None
                     files.append(self._finalize_file(current_file))
                 
                 # Parse file paths
@@ -121,7 +125,8 @@ class GitService:
                         'additions': 0,
                         'deletions': 0,
                         'is_binary': False,
-                        'is_renamed': False
+                        'is_renamed': False,
+                        'status': None
                     }
             
             # Binary file detection
@@ -129,10 +134,19 @@ class GitService:
                 if current_file:
                     current_file['is_binary'] = True
             
+            # File status detection
+            elif line.startswith('new file mode'):
+                if current_file:
+                    current_file['status'] = 'added'
+            elif line.startswith('deleted file mode'):
+                if current_file:
+                    current_file['status'] = 'deleted'
+            
             # File rename detection
             elif line.startswith('similarity index') or line.startswith('rename from'):
                 if current_file:
                     current_file['is_renamed'] = True
+                    current_file['status'] = 'renamed'
             
             # Chunk header
             elif line.startswith('@@'):
@@ -221,6 +235,7 @@ class GitService:
             deletions=file_data['deletions'], 
             chunks=file_data['chunks'],
             is_binary=file_data['is_binary'],
-            is_renamed=file_data['is_renamed']
+            is_renamed=file_data['is_renamed'],
+            status=file_data['status']
         )
     
