@@ -49,7 +49,7 @@ Key reference: GitHub's PR Files Changed tab interface (see screenshot.png)
 - [x] Design REST API endpoints based on frontend needs
 - [x] Replace mock data with API calls
 - [x] Implement real git diff parsing
-- [x] Add WebSocket for real-time comment updates
+- [x] ~~Add WebSocket for real-time comment updates~~ (removed - not needed)
 
 ### Task 6: Polish and Features
 - [ ] Add syntax highlighting with Prism.js or highlight.js

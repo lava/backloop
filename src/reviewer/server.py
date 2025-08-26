@@ -1,8 +1,7 @@
 from pathlib import Path
-from typing import List, Optional, Dict, Set
-import json
+from typing import List, Optional
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,32 +28,6 @@ BASE_DIR = Path(__file__).parent.parent.parent
 git_service = GitService()
 comment_service = CommentService()
 
-# WebSocket connection manager
-class ConnectionManager:
-    def __init__(self) -> None:
-        self.active_connections: Set[WebSocket] = set()
-
-    async def connect(self, websocket: WebSocket) -> None:
-        await websocket.accept()
-        self.active_connections.add(websocket)
-
-    def disconnect(self, websocket: WebSocket) -> None:
-        self.active_connections.discard(websocket)
-
-    async def broadcast(self, message: dict) -> None:
-        """Broadcast message to all connected clients."""
-        disconnected = set()
-        for connection in self.active_connections:
-            try:
-                await connection.send_text(json.dumps(message))
-            except Exception:
-                disconnected.add(connection)
-        
-        # Remove disconnected clients
-        self.active_connections -= disconnected
-
-manager = ConnectionManager()
-
 @app.get("/")
 async def read_index() -> FileResponse:
     """Serve the main index.html file."""
@@ -76,29 +49,10 @@ async def get_comments(file_path: Optional[str] = None) -> List[Comment]:
     """Get all comments, optionally filtered by file path."""
     return comment_service.get_comments(file_path=file_path)
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket) -> None:
-    """WebSocket endpoint for real-time updates."""
-    await manager.connect(websocket)
-    try:
-        while True:
-            # Keep connection alive, we only use this for broadcasting
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
-
 @app.post("/api/comments")
 async def create_comment(request: CommentRequest) -> Comment:
     """Create a new comment."""
-    comment = comment_service.add_comment(request)
-    
-    # Broadcast new comment to all connected clients
-    await manager.broadcast({
-        "type": "comment_created",
-        "comment": comment.model_dump()
-    })
-    
-    return comment
+    return comment_service.add_comment(request)
 
 @app.get("/api/comments/{comment_id}")
 async def get_comment(comment_id: str) -> Comment:
@@ -114,13 +68,6 @@ async def update_comment(comment_id: str, content: str) -> Comment:
     comment = comment_service.update_comment(comment_id, content)
     if not comment:
         raise HTTPException(status_code=404, detail="Comment not found")
-    
-    # Broadcast comment update
-    await manager.broadcast({
-        "type": "comment_updated",
-        "comment": comment.model_dump()
-    })
-    
     return comment
 
 @app.delete("/api/comments/{comment_id}")
@@ -129,13 +76,6 @@ async def delete_comment(comment_id: str) -> dict:
     success = comment_service.delete_comment(comment_id)
     if not success:
         raise HTTPException(status_code=404, detail="Comment not found")
-    
-    # Broadcast comment deletion
-    await manager.broadcast({
-        "type": "comment_deleted",
-        "comment_id": comment_id
-    })
-    
     return {"message": "Comment deleted successfully"}
 
 def main() -> None:

@@ -1443,54 +1443,6 @@
         class ApiClient {
             constructor(baseUrl = '') {
                 this.baseUrl = baseUrl;
-                this.websocket = null;
-                this.eventHandlers = new Map();
-            }
-            
-            connectWebSocket() {
-                const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
-                this.websocket = new WebSocket(wsUrl);
-                
-                this.websocket.onopen = () => {
-                    console.log('WebSocket connected');
-                };
-                
-                this.websocket.onmessage = (event) => {
-                    try {
-                        const message = JSON.parse(event.data);
-                        const handlers = this.eventHandlers.get(message.type) || [];
-                        handlers.forEach(handler => handler(message));
-                    } catch (error) {
-                        console.error('Error processing WebSocket message:', error);
-                    }
-                };
-                
-                this.websocket.onclose = () => {
-                    console.log('WebSocket disconnected');
-                    // Attempt to reconnect after 3 seconds
-                    setTimeout(() => this.connectWebSocket(), 3000);
-                };
-                
-                this.websocket.onerror = (error) => {
-                    console.error('WebSocket error:', error);
-                };
-            }
-            
-            on(eventType, handler) {
-                if (!this.eventHandlers.has(eventType)) {
-                    this.eventHandlers.set(eventType, []);
-                }
-                this.eventHandlers.get(eventType).push(handler);
-            }
-            
-            off(eventType, handler) {
-                const handlers = this.eventHandlers.get(eventType);
-                if (handlers) {
-                    const index = handlers.indexOf(handler);
-                    if (index > -1) {
-                        handlers.splice(index, 1);
-                    }
-                }
             }
             
             async getDiff(commit = null, staged = false) {
@@ -1796,107 +1748,6 @@
                 this.apiClient = apiClient;
                 this.comments = new Map(); // Cache comments by lineId
                 this.activeForm = null;
-                
-                // Set up WebSocket event listeners
-                this.setupWebSocketHandlers();
-            }
-            
-            setupWebSocketHandlers() {
-                this.apiClient.on('comment_created', (message) => {
-                    this.handleCommentCreated(message.comment);
-                });
-                
-                this.apiClient.on('comment_updated', (message) => {
-                    this.handleCommentUpdated(message.comment);
-                });
-                
-                this.apiClient.on('comment_deleted', (message) => {
-                    this.handleCommentDeleted(message.comment_id);
-                });
-            }
-            
-            handleCommentCreated(comment) {
-                // Only handle comments from other users (avoid duplicating own comments)
-                const lineId = this.getLineId(comment.file_path, comment.line_number, comment.line_number, comment.side);
-                const existingComments = this.getComments(lineId);
-                const isOwnComment = existingComments.some(c => c.id === comment.id);
-                
-                if (!isOwnComment) {
-                    if (!this.comments.has(lineId)) {
-                        this.comments.set(lineId, []);
-                    }
-                    
-                    const localComment = {
-                        id: comment.id,
-                        text: comment.content,
-                        author: comment.author,
-                        timestamp: new Date(comment.timestamp).toLocaleString(),
-                        created: new Date(comment.timestamp).getTime()
-                    };
-                    
-                    this.comments.get(lineId).push(localComment);
-                    this.refreshCommentDisplay(lineId);
-                }
-            }
-            
-            handleCommentUpdated(comment) {
-                const lineId = this.getLineId(comment.file_path, comment.line_number, comment.line_number, comment.side);
-                const comments = this.comments.get(lineId);
-                if (comments) {
-                    const index = comments.findIndex(c => c.id === comment.id);
-                    if (index !== -1) {
-                        comments[index] = {
-                            id: comment.id,
-                            text: comment.content,
-                            author: comment.author,
-                            timestamp: new Date(comment.timestamp).toLocaleString(),
-                            created: new Date(comment.timestamp).getTime()
-                        };
-                        this.refreshCommentDisplay(lineId);
-                    }
-                }
-            }
-            
-            handleCommentDeleted(commentId) {
-                // Find and remove the comment from all line comments
-                for (const [lineId, comments] of this.comments.entries()) {
-                    const index = comments.findIndex(c => c.id === commentId);
-                    if (index !== -1) {
-                        comments.splice(index, 1);
-                        if (comments.length === 0) {
-                            this.comments.delete(lineId);
-                        }
-                        this.refreshCommentDisplay(lineId);
-                        break;
-                    }
-                }
-            }
-            
-            refreshCommentDisplay(lineId) {
-                // Find the line element and refresh its comment display
-                const lineElements = document.querySelectorAll('.diff-line');
-                for (const lineElement of lineElements) {
-                    if (this.getLineElementId(lineElement) === lineId) {
-                        this.updateCommentBadge(lineElement, lineId);
-                        this.renderComments(lineElement, lineId);
-                        break;
-                    }
-                }
-            }
-            
-            getLineElementId(lineElement) {
-                const fileSection = lineElement.closest('.file-section');
-                const filePath = fileSection ? fileSection.querySelector('.file-path').textContent : '';
-                const diffPane = lineElement.closest('.diff-pane');
-                const side = diffPane && diffPane.id === 'old-pane' ? 'old' : 'new';
-                
-                const lineNumber = lineElement.querySelector('.line-number');
-                const oldNumEl = lineNumber ? lineNumber.querySelector('.old-line-num') : null;
-                const newNumEl = lineNumber ? lineNumber.querySelector('.new-line-num') : null;
-                const oldNum = oldNumEl ? oldNumEl.textContent.trim() || null : null;
-                const newNum = newNumEl ? newNumEl.textContent.trim() || null : null;
-                
-                return this.getLineId(filePath, oldNum, newNum, side);
             }
 
             async loadComments() {
@@ -2133,9 +1984,6 @@
         // Initialize
         document.addEventListener('DOMContentLoaded', async () => {
             try {
-                // Connect WebSocket first
-                apiClient.connectWebSocket();
-                
                 // Initialize comment system
                 const commentSystem = new CommentSystem(apiClient);
                 commentSystem.setupLineClickHandlers();
