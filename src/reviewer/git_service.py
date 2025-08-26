@@ -13,14 +13,32 @@ class GitService:
         """Initialize with optional repository path."""
         self.repo_path = Path(repo_path) if repo_path else Path.cwd()
         
-    def get_diff(self, commit_hash: Optional[str] = None, staged: bool = False) -> GitDiff:
-        """Get diff for a commit or staged changes."""
+    def get_diff(
+        self, 
+        commit_hash: Optional[str] = None, 
+        commit_range: Optional[str] = None,
+        staged: bool = False,
+        include_working_dir: bool = False
+    ) -> GitDiff:
+        """Get diff for a commit, range, or changes."""
         commit_info: List[Optional[str]]
         
-        if commit_hash:
+        if commit_range:
+            # Get diff for commit range (e.g., "abc123..def456" or "main..feature")
+            diff_cmd = ["git", "diff", commit_range]
+            diff_output = self._run_git_command(diff_cmd)
+            
+            # Parse range to get info
+            if ".." in commit_range:
+                from_ref, to_ref = commit_range.split("..", 1)
+                commit_info = [None, None, f"Range: {from_ref}..{to_ref}"]
+            else:
+                commit_info = [None, None, f"Range: {commit_range}"]
+                
+        elif commit_hash:
             # Get diff for specific commit
-            cmd = ["git", "show", "--pretty=format:", "--name-status", commit_hash]
-            result = self._run_git_command(cmd)
+            diff_cmd = ["git", "show", "--pretty=format:", commit_hash]
+            diff_output = self._run_git_command(diff_cmd)
             
             # Get commit info
             info_cmd = ["git", "show", "--pretty=format:%H|%an|%s", "--no-patch", commit_hash]
@@ -28,21 +46,43 @@ class GitService:
             commit_parts = info_result.strip().split("|") if info_result.strip() else ["", "", ""]
             commit_info = [part if part else None for part in commit_parts]
             
-            # Get the actual diff
-            diff_cmd = ["git", "show", "--pretty=format:", commit_hash]
-            diff_output = self._run_git_command(diff_cmd)
         elif staged:
             # Get staged changes
             diff_cmd = ["git", "diff", "--cached"]
             diff_output = self._run_git_command(diff_cmd)
             commit_info = [None, None, "Staged changes"]
+            
         else:
             # Get working directory changes
             diff_cmd = ["git", "diff", "HEAD"]
             diff_output = self._run_git_command(diff_cmd)
             commit_info = [None, None, "Working directory changes"]
+        
+        # Handle additional working directory changes if requested
+        additional_diff_output = ""
+        if include_working_dir and (commit_hash or commit_range):
+            # Add working directory changes to the diff
+            try:
+                wd_diff_cmd = ["git", "diff", "HEAD"]
+                additional_diff_output = self._run_git_command(wd_diff_cmd)
+                if additional_diff_output.strip():
+                    # Update description to indicate working dir changes are included
+                    if commit_info[2]:
+                        commit_info[2] += " + Working directory changes"
+                    else:
+                        commit_info[2] = "Working directory changes included"
+            except Exception:
+                # If working directory diff fails, continue without it
+                pass
             
+        # Parse the main diff
         files = self._parse_diff_output(diff_output)
+        
+        # If we have additional working directory changes, parse and merge them
+        if additional_diff_output.strip():
+            additional_files = self._parse_diff_output(additional_diff_output)
+            # Merge files - if same file exists in both, combine chunks
+            files = self._merge_diff_files(files, additional_files)
         
         return GitDiff(
             files=files,
@@ -202,3 +242,38 @@ class GitService:
             is_binary=file_data['is_binary'],
             is_renamed=file_data['is_renamed']
         )
+    
+    def _merge_diff_files(self, main_files: List[DiffFile], additional_files: List[DiffFile]) -> List[DiffFile]:
+        """Merge two lists of diff files, combining chunks for files that appear in both."""
+        merged_files = []
+        main_files_dict = {f.path: f for f in main_files}
+        
+        # Add all main files first
+        for file in main_files:
+            merged_files.append(file)
+        
+        # Add additional files, merging if they already exist
+        for additional_file in additional_files:
+            if additional_file.path in main_files_dict:
+                # File exists in both - merge chunks
+                main_file = main_files_dict[additional_file.path]
+                # Create new file with combined chunks and stats
+                merged_file = DiffFile(
+                    path=additional_file.path,
+                    old_path=main_file.old_path or additional_file.old_path,
+                    additions=main_file.additions + additional_file.additions,
+                    deletions=main_file.deletions + additional_file.deletions,
+                    chunks=main_file.chunks + additional_file.chunks,
+                    is_binary=main_file.is_binary or additional_file.is_binary,
+                    is_renamed=main_file.is_renamed or additional_file.is_renamed
+                )
+                # Replace the main file with merged version
+                for i, f in enumerate(merged_files):
+                    if f.path == additional_file.path:
+                        merged_files[i] = merged_file
+                        break
+            else:
+                # New file - just add it
+                merged_files.append(additional_file)
+        
+        return merged_files

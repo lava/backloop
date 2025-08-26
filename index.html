@@ -1445,10 +1445,14 @@
                 this.baseUrl = baseUrl;
             }
             
-            async getDiff(commit = null, staged = false) {
+            async getDiff(options = {}) {
+                const { commit, range, staged = false, includeWorkingDir = false } = options;
                 const params = new URLSearchParams();
+                
                 if (commit) params.append('commit', commit);
+                if (range) params.append('range', range);
                 if (staged) params.append('staged', 'true');
+                if (includeWorkingDir) params.append('include_working_dir', 'true');
                 
                 const response = await fetch(`${this.baseUrl}/api/diff?${params}`);
                 if (!response.ok) {
@@ -1991,6 +1995,7 @@
                 // Load diff data from API (fall back to mock if API fails)
                 let diffData;
                 try {
+                    // Default to showing working directory changes
                     diffData = await apiClient.getDiff();
                 } catch (error) {
                     console.warn('API not available, using mock data:', error);

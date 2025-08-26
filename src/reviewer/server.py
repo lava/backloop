@@ -37,10 +37,27 @@ async def read_index() -> FileResponse:
     return FileResponse(index_path)
 
 @app.get("/api/diff")
-async def get_diff(commit: Optional[str] = None, staged: bool = False) -> GitDiff:
-    """Get diff data for a commit or current changes."""
+async def get_diff(
+    commit: Optional[str] = None,
+    range: Optional[str] = None, 
+    staged: bool = False,
+    include_working_dir: bool = False
+) -> GitDiff:
+    """Get diff data for a commit, range, or current changes.
+    
+    Parameters:
+    - commit: Show changes for a specific commit (e.g., 'abc123')
+    - range: Show changes for a commit range (e.g., 'main..feature' or 'abc123..def456')
+    - staged: Show staged changes only
+    - include_working_dir: Include working directory changes (works with commit or range)
+    """
     try:
-        return git_service.get_diff(commit_hash=commit, staged=staged)
+        return git_service.get_diff(
+            commit_hash=commit,
+            commit_range=range,
+            staged=staged,
+            include_working_dir=include_working_dir
+        )
     except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
