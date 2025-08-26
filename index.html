@@ -1128,38 +1128,19 @@
             });
         }
 
-        // Scroll to specific file in diff view
+        // Scroll to specific file in diff view using anchors
         function scrollToFile(filePath) {
+            // Create a sanitized anchor ID from the file path
+            const anchorId = 'file-' + filePath.replace(/[^a-zA-Z0-9]/g, '-');
+            
+            // Find and scroll to anchors in both panes
             const diffPanes = [document.getElementById('old-pane'), document.getElementById('new-pane')];
             
             diffPanes.forEach(pane => {
-                const fileHeaders = pane.querySelectorAll('.file-path');
-                for (const header of fileHeaders) {
-                    if (header.textContent === filePath) {
-                        const fileSection = header.closest('.file-section');
-                        
-                        // Get the pane header to calculate its bottom position
-                        const paneHeader = pane.querySelector('.pane-header');
-                        
-                        // Get positions relative to the pane container
-                        const paneRect = pane.getBoundingClientRect();
-                        const headerRect = paneHeader.getBoundingClientRect();
-                        const fileSectionRect = fileSection.getBoundingClientRect();
-                        
-                        // Calculate where to scroll so file appears just below the pane header
-                        const headerBottom = headerRect.bottom - paneRect.top;
-                        const currentFileTop = fileSectionRect.top - paneRect.top;
-                        const scrollAdjustment = currentFileTop - headerBottom;
-                        
-                        const targetScrollTop = pane.scrollTop + scrollAdjustment;
-                        
-                        // Smooth scroll to the calculated position
-                        pane.scrollTo({
-                            top: targetScrollTop,
-                            behavior: 'smooth'
-                        });
-                        break;
-                    }
+                const anchor = pane.querySelector(`#${anchorId}-${pane.id}`);
+                if (anchor) {
+                    // Use scrollIntoView with instant behavior
+                    anchor.scrollIntoView({ behavior: 'instant', block: 'start' });
                 }
             });
         }
@@ -1195,6 +1176,18 @@
         function createFileSection(file, side) {
             const section = document.createElement('div');
             section.className = 'file-section';
+            
+            // Create a unique anchor ID for this file in this pane
+            const anchorId = 'file-' + file.path.replace(/[^a-zA-Z0-9]/g, '-');
+            const paneId = side === 'old' ? 'old-pane' : 'new-pane';
+            
+            // Add an anchor element at the top of the section
+            const anchor = document.createElement('div');
+            anchor.id = `${anchorId}-${paneId}`;
+            anchor.style.position = 'absolute';
+            anchor.style.top = '-33px'; // Offset to account for pane header (height + border)
+            section.style.position = 'relative';
+            section.appendChild(anchor);
             
             // File header
             const header = document.createElement('div');
