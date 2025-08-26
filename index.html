@@ -1439,6 +1439,134 @@
             });
         }
 
+        // API Client for communication with backend
+        class ApiClient {
+            constructor(baseUrl = '') {
+                this.baseUrl = baseUrl;
+                this.websocket = null;
+                this.eventHandlers = new Map();
+            }
+            
+            connectWebSocket() {
+                const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+                this.websocket = new WebSocket(wsUrl);
+                
+                this.websocket.onopen = () => {
+                    console.log('WebSocket connected');
+                };
+                
+                this.websocket.onmessage = (event) => {
+                    try {
+                        const message = JSON.parse(event.data);
+                        const handlers = this.eventHandlers.get(message.type) || [];
+                        handlers.forEach(handler => handler(message));
+                    } catch (error) {
+                        console.error('Error processing WebSocket message:', error);
+                    }
+                };
+                
+                this.websocket.onclose = () => {
+                    console.log('WebSocket disconnected');
+                    // Attempt to reconnect after 3 seconds
+                    setTimeout(() => this.connectWebSocket(), 3000);
+                };
+                
+                this.websocket.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                };
+            }
+            
+            on(eventType, handler) {
+                if (!this.eventHandlers.has(eventType)) {
+                    this.eventHandlers.set(eventType, []);
+                }
+                this.eventHandlers.get(eventType).push(handler);
+            }
+            
+            off(eventType, handler) {
+                const handlers = this.eventHandlers.get(eventType);
+                if (handlers) {
+                    const index = handlers.indexOf(handler);
+                    if (index > -1) {
+                        handlers.splice(index, 1);
+                    }
+                }
+            }
+            
+            async getDiff(commit = null, staged = false) {
+                const params = new URLSearchParams();
+                if (commit) params.append('commit', commit);
+                if (staged) params.append('staged', 'true');
+                
+                const response = await fetch(`${this.baseUrl}/api/diff?${params}`);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch diff: ${response.statusText}`);
+                }
+                return await response.json();
+            }
+            
+            async getComments(filePath = null) {
+                const params = new URLSearchParams();
+                if (filePath) params.append('file_path', filePath);
+                
+                const response = await fetch(`${this.baseUrl}/api/comments?${params}`);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch comments: ${response.statusText}`);
+                }
+                return await response.json();
+            }
+            
+            async createComment(filePath, lineNumber, side, content, author = 'User') {
+                const response = await fetch(`${this.baseUrl}/api/comments`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        file_path: filePath,
+                        line_number: lineNumber,
+                        side: side,
+                        content: content,
+                        author: author
+                    }),
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to create comment: ${response.statusText}`);
+                }
+                return await response.json();
+            }
+            
+            async updateComment(commentId, content) {
+                const response = await fetch(`${this.baseUrl}/api/comments/${commentId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ content }),
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to update comment: ${response.statusText}`);
+                }
+                return await response.json();
+            }
+            
+            async deleteComment(commentId) {
+                const response = await fetch(`${this.baseUrl}/api/comments/${commentId}`, {
+                    method: 'DELETE',
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to delete comment: ${response.statusText}`);
+                }
+                return await response.json();
+            }
+        }
+        
+        // Initialize API client
+        const apiClient = new ApiClient();
+
         // Render diff content
         function renderDiff(diff) {
             const oldContent = document.getElementById('old-content');
@@ -1664,55 +1792,175 @@
 
         // Comment System
         class CommentSystem {
-            constructor() {
-                this.comments = this.loadComments();
+            constructor(apiClient) {
+                this.apiClient = apiClient;
+                this.comments = new Map(); // Cache comments by lineId
                 this.activeForm = null;
+                
+                // Set up WebSocket event listeners
+                this.setupWebSocketHandlers();
             }
-
-            loadComments() {
-                try {
-                    return JSON.parse(localStorage.getItem('diffComments') || '{}');
-                } catch {
-                    return {};
+            
+            setupWebSocketHandlers() {
+                this.apiClient.on('comment_created', (message) => {
+                    this.handleCommentCreated(message.comment);
+                });
+                
+                this.apiClient.on('comment_updated', (message) => {
+                    this.handleCommentUpdated(message.comment);
+                });
+                
+                this.apiClient.on('comment_deleted', (message) => {
+                    this.handleCommentDeleted(message.comment_id);
+                });
+            }
+            
+            handleCommentCreated(comment) {
+                // Only handle comments from other users (avoid duplicating own comments)
+                const lineId = this.getLineId(comment.file_path, comment.line_number, comment.line_number, comment.side);
+                const existingComments = this.getComments(lineId);
+                const isOwnComment = existingComments.some(c => c.id === comment.id);
+                
+                if (!isOwnComment) {
+                    if (!this.comments.has(lineId)) {
+                        this.comments.set(lineId, []);
+                    }
+                    
+                    const localComment = {
+                        id: comment.id,
+                        text: comment.content,
+                        author: comment.author,
+                        timestamp: new Date(comment.timestamp).toLocaleString(),
+                        created: new Date(comment.timestamp).getTime()
+                    };
+                    
+                    this.comments.get(lineId).push(localComment);
+                    this.refreshCommentDisplay(lineId);
                 }
             }
+            
+            handleCommentUpdated(comment) {
+                const lineId = this.getLineId(comment.file_path, comment.line_number, comment.line_number, comment.side);
+                const comments = this.comments.get(lineId);
+                if (comments) {
+                    const index = comments.findIndex(c => c.id === comment.id);
+                    if (index !== -1) {
+                        comments[index] = {
+                            id: comment.id,
+                            text: comment.content,
+                            author: comment.author,
+                            timestamp: new Date(comment.timestamp).toLocaleString(),
+                            created: new Date(comment.timestamp).getTime()
+                        };
+                        this.refreshCommentDisplay(lineId);
+                    }
+                }
+            }
+            
+            handleCommentDeleted(commentId) {
+                // Find and remove the comment from all line comments
+                for (const [lineId, comments] of this.comments.entries()) {
+                    const index = comments.findIndex(c => c.id === commentId);
+                    if (index !== -1) {
+                        comments.splice(index, 1);
+                        if (comments.length === 0) {
+                            this.comments.delete(lineId);
+                        }
+                        this.refreshCommentDisplay(lineId);
+                        break;
+                    }
+                }
+            }
+            
+            refreshCommentDisplay(lineId) {
+                // Find the line element and refresh its comment display
+                const lineElements = document.querySelectorAll('.diff-line');
+                for (const lineElement of lineElements) {
+                    if (this.getLineElementId(lineElement) === lineId) {
+                        this.updateCommentBadge(lineElement, lineId);
+                        this.renderComments(lineElement, lineId);
+                        break;
+                    }
+                }
+            }
+            
+            getLineElementId(lineElement) {
+                const fileSection = lineElement.closest('.file-section');
+                const filePath = fileSection ? fileSection.querySelector('.file-path').textContent : '';
+                const diffPane = lineElement.closest('.diff-pane');
+                const side = diffPane && diffPane.id === 'old-pane' ? 'old' : 'new';
+                
+                const lineNumber = lineElement.querySelector('.line-number');
+                const oldNumEl = lineNumber ? lineNumber.querySelector('.old-line-num') : null;
+                const newNumEl = lineNumber ? lineNumber.querySelector('.new-line-num') : null;
+                const oldNum = oldNumEl ? oldNumEl.textContent.trim() || null : null;
+                const newNum = newNumEl ? newNumEl.textContent.trim() || null : null;
+                
+                return this.getLineId(filePath, oldNum, newNum, side);
+            }
 
-            saveComments() {
-                localStorage.setItem('diffComments', JSON.stringify(this.comments));
+            async loadComments() {
+                try {
+                    const allComments = await this.apiClient.getComments();
+                    this.comments.clear();
+                    
+                    // Group comments by line
+                    allComments.forEach(comment => {
+                        const lineId = this.getLineId(comment.file_path, comment.line_number, comment.line_number, comment.side);
+                        if (!this.comments.has(lineId)) {
+                            this.comments.set(lineId, []);
+                        }
+                        this.comments.get(lineId).push({
+                            id: comment.id,
+                            text: comment.content,
+                            author: comment.author,
+                            timestamp: new Date(comment.timestamp).toLocaleString(),
+                            created: new Date(comment.timestamp).getTime()
+                        });
+                    });
+                } catch (error) {
+                    console.error('Failed to load comments:', error);
+                }
             }
 
             getLineId(filePath, oldNum, newNum, side) {
                 return `${filePath}:${side}:${oldNum || 'null'}:${newNum || 'null'}`;
             }
 
-            addComment(lineId, text) {
-                if (!this.comments[lineId]) {
-                    this.comments[lineId] = [];
+            async addComment(lineId, text, filePath, lineNumber, side) {
+                try {
+                    const comment = await this.apiClient.createComment(filePath, lineNumber, side, text);
+                    
+                    if (!this.comments.has(lineId)) {
+                        this.comments.set(lineId, []);
+                    }
+                    
+                    const localComment = {
+                        id: comment.id,
+                        text: comment.content,
+                        author: comment.author,
+                        timestamp: new Date(comment.timestamp).toLocaleString(),
+                        created: new Date(comment.timestamp).getTime()
+                    };
+                    
+                    this.comments.get(lineId).push(localComment);
+                    return localComment;
+                } catch (error) {
+                    console.error('Failed to add comment:', error);
+                    throw error;
                 }
-                
-                const comment = {
-                    id: Date.now().toString(),
-                    text,
-                    author: 'You',
-                    timestamp: new Date().toLocaleString(),
-                    created: Date.now()
-                };
-                
-                this.comments[lineId].push(comment);
-                this.saveComments();
-                return comment;
             }
 
             getComments(lineId) {
-                return this.comments[lineId] || [];
+                return this.comments.get(lineId) || [];
             }
 
             hasComments(lineId) {
-                return this.comments[lineId] && this.comments[lineId].length > 0;
+                return this.comments.has(lineId) && this.comments.get(lineId).length > 0;
             }
 
             getCommentCount(lineId) {
-                return this.comments[lineId] ? this.comments[lineId].length : 0;
+                return this.comments.has(lineId) ? this.comments.get(lineId).length : 0;
             }
 
             showCommentForm(lineElement, lineId, filePath, oldNum, newNum, side) {
@@ -1734,13 +1982,23 @@
                 const submitBtn = form.querySelector('[data-action="submit"]');
                 
                 cancelBtn.onclick = () => this.hideCommentForm();
-                submitBtn.onclick = () => {
+                submitBtn.onclick = async () => {
                     const text = textarea.value.trim();
                     if (text) {
-                        this.addComment(lineId, text);
-                        this.hideCommentForm();
-                        this.renderComments(lineElement, lineId);
-                        this.updateCommentBadge(lineElement, lineId);
+                        try {
+                            submitBtn.disabled = true;
+                            submitBtn.textContent = 'Saving...';
+                            
+                            const lineNumber = oldNum || newNum;
+                            await this.addComment(lineId, text, filePath, parseInt(lineNumber), side);
+                            this.hideCommentForm();
+                            this.renderComments(lineElement, lineId);
+                            this.updateCommentBadge(lineElement, lineId);
+                        } catch (error) {
+                            alert('Failed to save comment. Please try again.');
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = 'Comment';
+                        }
                     }
                 };
                 
@@ -1852,15 +2110,15 @@
                     if (lineElement.classList.contains('empty-line')) return;
 
                     const fileSection = lineElement.closest('.file-section');
-                    const filePath = fileSection.querySelector('.file-path').textContent;
+                    const filePath = fileSection ? fileSection.querySelector('.file-path').textContent : '';
                     const diffPane = lineElement.closest('.diff-pane');
-                    const side = diffPane.id === 'old-pane' ? 'old' : 'new';
+                    const side = diffPane && diffPane.id === 'old-pane' ? 'old' : 'new';
                     
                     const lineNumber = lineElement.querySelector('.line-number');
-                    const oldNumEl = lineNumber.querySelector('.old-line-num');
-                    const newNumEl = lineNumber.querySelector('.new-line-num');
-                    const oldNum = oldNumEl.textContent.trim() || null;
-                    const newNum = newNumEl.textContent.trim() || null;
+                    const oldNumEl = lineNumber ? lineNumber.querySelector('.old-line-num') : null;
+                    const newNumEl = lineNumber ? lineNumber.querySelector('.new-line-num') : null;
+                    const oldNum = oldNumEl ? oldNumEl.textContent.trim() || null : null;
+                    const newNum = newNumEl ? newNumEl.textContent.trim() || null : null;
                     
                     const lineId = this.getLineId(filePath, oldNum, newNum, side);
                     
@@ -1873,14 +2131,41 @@
         }
 
         // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            renderDiff(mockDiff);
-            setupSynchronizedScrolling();
-            
-            // Initialize comment system
-            const commentSystem = new CommentSystem();
-            commentSystem.setupLineClickHandlers();
-            commentSystem.initializeExistingComments();
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // Connect WebSocket first
+                apiClient.connectWebSocket();
+                
+                // Initialize comment system
+                const commentSystem = new CommentSystem(apiClient);
+                commentSystem.setupLineClickHandlers();
+                
+                // Load diff data from API (fall back to mock if API fails)
+                let diffData;
+                try {
+                    diffData = await apiClient.getDiff();
+                } catch (error) {
+                    console.warn('API not available, using mock data:', error);
+                    diffData = mockDiff;
+                }
+                
+                // Render the diff
+                renderDiff(diffData);
+                setupSynchronizedScrolling();
+                
+                // Load and initialize comments
+                await commentSystem.loadComments();
+                commentSystem.initializeExistingComments();
+                
+            } catch (error) {
+                console.error('Failed to initialize application:', error);
+                // Fall back to mock data
+                renderDiff(mockDiff);
+                setupSynchronizedScrolling();
+                
+                const commentSystem = new CommentSystem(apiClient);
+                commentSystem.setupLineClickHandlers();
+            }
         });
     </script>
 </body>

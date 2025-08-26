@@ -45,11 +45,11 @@ Key reference: GitHub's PR Files Changed tab interface (see screenshot.png)
 - [x] Include binary file indicators
 - [x] Add file rename detection display
 
-### Task 5: API Design and Backend Connection
-- [ ] Design REST API endpoints based on frontend needs
-- [ ] Replace mock data with API calls
-- [ ] Implement real git diff parsing
-- [ ] Add WebSocket for real-time comment updates
+### Task 5: API Design and Backend Connection ✅
+- [x] Design REST API endpoints based on frontend needs
+- [x] Replace mock data with API calls
+- [x] Implement real git diff parsing
+- [x] Add WebSocket for real-time comment updates
 
 ### Task 6: Polish and Features
 - [ ] Add syntax highlighting with Prism.js or highlight.js
