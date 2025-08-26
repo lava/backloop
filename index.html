@@ -147,6 +147,8 @@
 
         .diff-pane {
             flex: 1;
+            width: 0;
+            min-width: 0;
             overflow-y: auto;
             border-right: 1px solid #d0d7de;
         }
@@ -330,6 +332,12 @@
             font-size: 14px;
             text-align: center;
             color: #656d76;
+        }
+
+        #old-content, #new-content {
+            min-width: 0;
+            width: 100%;
+            overflow-x: auto;
         }
 
         .empty-line {
