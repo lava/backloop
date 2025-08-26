@@ -512,6 +512,94 @@
         .comment-thread.collapsed .comment:first-child {
             display: block;
         }
+
+        /* File Status Styles */
+        .status-badge {
+            margin-left: 8px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .status-added {
+            background: #ddf4ff;
+            color: #0969da;
+        }
+
+        .status-deleted {
+            background: #ffebe9;
+            color: #cf222e;
+        }
+
+        .status-renamed {
+            background: #fff8c5;
+            color: #9a6700;
+        }
+
+        .binary-indicator {
+            color: #656d76;
+            font-style: italic;
+            font-size: 12px;
+        }
+
+        /* File tree status colors */
+        .file-added .file-name {
+            color: #1a7f37;
+        }
+
+        .file-deleted .file-name {
+            color: #cf222e;
+            text-decoration: line-through;
+        }
+
+        .file-renamed .file-name {
+            color: #9a6700;
+        }
+
+        /* Binary file message */
+        .binary-file-message {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 20px;
+            color: #656d76;
+            background: #f6f8fa;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            margin: 16px;
+        }
+
+        .binary-file-icon {
+            font-size: 48px;
+            margin-right: 16px;
+            opacity: 0.6;
+        }
+
+        .binary-file-text {
+            text-align: center;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        /* Empty file message */
+        .empty-file-message {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            color: #656d76;
+            background: #f6f8fa;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            margin: 16px;
+            font-style: italic;
+        }
+
+        .empty-file-text {
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -541,13 +629,15 @@
     </div>
 
     <script>
-        // Mock diff data structure with extensive changes to span multiple screen heights
+        // Comprehensive mock diff data structure covering edge cases and file types
         const mockDiff = {
             files: [{
                 path: '.github/workflows/ci.yml',
                 oldPath: '.github/workflows/ci.yml',
+                status: 'modified', // modified, added, deleted, renamed, copied
                 additions: 15,
                 deletions: 8,
+                binary: false,
                 chunks: [{
                     oldStart: 1,
                     oldLines: 25,
@@ -595,8 +685,10 @@
             }, {
                 path: '.github/workflows/release.yaml',
                 oldPath: '.github/workflows/release.yaml',
+                status: 'modified',
                 additions: 25,
                 deletions: 12,
+                binary: false,
                 chunks: [{
                     oldStart: 1,
                     oldLines: 40,
@@ -651,10 +743,12 @@
                     ]
                 }]
             }, {
-                path: 'README.md',
+                path: 'README.md', 
                 oldPath: 'README.md',
+                status: 'modified',
                 additions: 45,
                 deletions: 18,
+                binary: false,
                 chunks: [{
                     oldStart: 1,
                     oldLines: 35,
@@ -732,8 +826,10 @@
             }, {
                 path: 'src/main.py',
                 oldPath: 'src/main.py',
+                status: 'modified',
                 additions: 25,
                 deletions: 8,
+                binary: false,
                 chunks: [{
                     oldStart: 1,
                     oldLines: 15,
@@ -781,10 +877,12 @@
                     ]
                 }]
             }, {
-                path: 'src/utils/helpers.py',
+                path: 'src/utils/helpers.py', 
                 oldPath: 'src/utils/helpers.py',
+                status: 'modified',
                 additions: 35,
                 deletions: 0,
+                binary: false,
                 chunks: [{
                     oldStart: 1,
                     oldLines: 1,
@@ -838,8 +936,10 @@
             }, {
                 path: 'src/core/__init__.py',
                 oldPath: null,
+                status: 'added',
                 additions: 1,
                 deletions: 0,
+                binary: false,
                 chunks: [{
                     oldStart: 0,
                     oldLines: 0,
@@ -852,8 +952,10 @@
             }, {
                 path: 'src/core/processor.py',
                 oldPath: null,
+                status: 'added',
                 additions: 42,
                 deletions: 0,
+                binary: false,
                 chunks: [{
                     oldStart: 0,
                     oldLines: 0,
@@ -906,8 +1008,10 @@
             }, {
                 path: 'tests/test_main.py',
                 oldPath: 'tests/test_main.py',
+                status: 'modified',
                 additions: 20,
                 deletions: 5,
+                binary: false,
                 chunks: [{
                     oldStart: 1,
                     oldLines: 15,
@@ -954,8 +1058,10 @@
             }, {
                 path: 'tests/test_helpers.py',
                 oldPath: null,
+                status: 'added',
                 additions: 45,
                 deletions: 0,
+                binary: false,
                 chunks: [{
                     oldStart: 0,
                     oldLines: 0,
@@ -1006,6 +1112,154 @@
                         { type: 'addition', oldNum: null, newNum: 42, content: '    """Test load_data with non-existent file."""' },
                         { type: 'addition', oldNum: null, newNum: 43, content: '    with pytest.raises(FileNotFoundError):' },
                         { type: 'addition', oldNum: null, newNum: 44, content: '        load_data("nonexistent.json")' }
+                    ]
+                }]
+            }, {
+                // File rename example
+                path: 'src/utils/data_helpers.py',
+                oldPath: 'src/helpers.py',
+                status: 'renamed',
+                additions: 5,
+                deletions: 2,
+                binary: false,
+                chunks: [{
+                    oldStart: 1,
+                    oldLines: 20,
+                    newStart: 1,
+                    newLines: 23,
+                    lines: [
+                        { type: 'context', oldNum: 1, newNum: 1, content: '"""Utility functions for data processing."""' },
+                        { type: 'context', oldNum: 2, newNum: 2, content: 'import json' },
+                        { type: 'addition', oldNum: null, newNum: 3, content: 'import csv' },
+                        { type: 'addition', oldNum: null, newNum: 4, content: 'import yaml' },
+                        { type: 'context', oldNum: 3, newNum: 5, content: 'from pathlib import Path' },
+                        { type: 'context', oldNum: 4, newNum: 6, content: '' },
+                        { type: 'deletion', oldNum: 5, newNum: null, content: 'def old_function():' },
+                        { type: 'deletion', oldNum: 6, newNum: null, content: '    pass' },
+                        { type: 'addition', oldNum: null, newNum: 7, content: 'def load_csv_data(file_path):' },
+                        { type: 'addition', oldNum: null, newNum: 8, content: '    """Load CSV data from a file."""' },
+                        { type: 'addition', oldNum: null, newNum: 9, content: '    with open(file_path, "r") as f:' },
+                        { type: 'addition', oldNum: null, newNum: 10, content: '        return list(csv.DictReader(f))' },
+                        { type: 'context', oldNum: 7, newNum: 11, content: '' },
+                        { type: 'context', oldNum: 8, newNum: 12, content: 'def process_data(data):' },
+                        { type: 'context', oldNum: 9, newNum: 13, content: '    """Process the data."""' },
+                        { type: 'context', oldNum: 10, newNum: 14, content: '    return [item.upper() for item in data]' }
+                    ]
+                }]
+            }, {
+                // Binary file example
+                path: 'assets/logo.png',
+                oldPath: 'assets/logo.png',
+                status: 'modified',
+                additions: 0,
+                deletions: 0,
+                binary: true,
+                chunks: []
+            }, {
+                // New binary file
+                path: 'assets/icons/new-icon.svg',
+                oldPath: null,
+                status: 'added',
+                additions: 0,
+                deletions: 0,
+                binary: true,
+                chunks: []
+            }, {
+                // Deleted file
+                path: 'deprecated/old_module.py',
+                oldPath: 'deprecated/old_module.py',
+                status: 'deleted',
+                additions: 0,
+                deletions: 25,
+                binary: false,
+                chunks: [{
+                    oldStart: 1,
+                    oldLines: 25,
+                    newStart: 0,
+                    newLines: 0,
+                    lines: [
+                        { type: 'deletion', oldNum: 1, newNum: null, content: '"""Deprecated module - remove in next version."""' },
+                        { type: 'deletion', oldNum: 2, newNum: null, content: 'import warnings' },
+                        { type: 'deletion', oldNum: 3, newNum: null, content: '' },
+                        { type: 'deletion', oldNum: 4, newNum: null, content: 'warnings.warn(' },
+                        { type: 'deletion', oldNum: 5, newNum: null, content: '    "This module is deprecated and will be removed in v2.0",' },
+                        { type: 'deletion', oldNum: 6, newNum: null, content: '    DeprecationWarning,' },
+                        { type: 'deletion', oldNum: 7, newNum: null, content: '    stacklevel=2' },
+                        { type: 'deletion', oldNum: 8, newNum: null, content: ')' },
+                        { type: 'deletion', oldNum: 9, newNum: null, content: '' },
+                        { type: 'deletion', oldNum: 10, newNum: null, content: 'def legacy_function():' },
+                        { type: 'deletion', oldNum: 11, newNum: null, content: '    """Old function that is no longer needed."""' },
+                        { type: 'deletion', oldNum: 12, newNum: null, content: '    return "legacy result"' }
+                    ]
+                }]
+            }, {
+                // Large file with context chunks (common git diff pattern)
+                path: 'src/data/config.py',
+                oldPath: 'src/data/config.py',
+                status: 'modified',
+                additions: 3,
+                deletions: 1,
+                binary: false,
+                chunks: [{
+                    // First chunk at top of file
+                    oldStart: 1,
+                    oldLines: 8,
+                    newStart: 1,
+                    newLines: 8,
+                    lines: [
+                        { type: 'context', oldNum: 1, newNum: 1, content: '"""Configuration settings."""' },
+                        { type: 'context', oldNum: 2, newNum: 2, content: 'import os' },
+                        { type: 'context', oldNum: 3, newNum: 3, content: '' },
+                        { type: 'deletion', oldNum: 4, newNum: null, content: 'DEBUG = True' },
+                        { type: 'addition', oldNum: null, newNum: 4, content: 'DEBUG = os.getenv("DEBUG", "False").lower() == "true"' },
+                        { type: 'context', oldNum: 5, newNum: 5, content: 'DATABASE_URL = "sqlite:///app.db"' },
+                        { type: 'context', oldNum: 6, newNum: 6, content: 'SECRET_KEY = "dev-key"' },
+                        { type: 'context', oldNum: 7, newNum: 7, content: '' }
+                    ]
+                }, {
+                    // Second chunk in middle (simulated with higher line numbers)
+                    oldStart: 45,
+                    oldLines: 6,
+                    newStart: 45,
+                    newLines: 8,
+                    lines: [
+                        { type: 'context', oldNum: 45, newNum: 45, content: '# API Configuration' },
+                        { type: 'context', oldNum: 46, newNum: 46, content: 'API_VERSION = "v1"' },
+                        { type: 'addition', oldNum: null, newNum: 47, content: 'API_RATE_LIMIT = 100' },
+                        { type: 'addition', oldNum: null, newNum: 48, content: 'API_TIMEOUT = 30' },
+                        { type: 'context', oldNum: 47, newNum: 49, content: 'API_BASE_URL = "https://api.example.com"' },
+                        { type: 'context', oldNum: 48, newNum: 50, content: '' }
+                    ]
+                }]
+            }, {
+                // Empty file (edge case)
+                path: 'docs/CHANGELOG.md',
+                oldPath: null,
+                status: 'added',
+                additions: 0,
+                deletions: 0,
+                binary: false,
+                chunks: []
+            }, {
+                // File with only whitespace changes (edge case)
+                path: 'pyproject.toml',
+                oldPath: 'pyproject.toml',
+                status: 'modified',
+                additions: 1,
+                deletions: 1,
+                binary: false,
+                chunks: [{
+                    oldStart: 15,
+                    oldLines: 5,
+                    newStart: 15,
+                    newLines: 5,
+                    lines: [
+                        { type: 'context', oldNum: 15, newNum: 15, content: '[build-system]' },
+                        { type: 'context', oldNum: 16, newNum: 16, content: 'requires = [' },
+                        { type: 'deletion', oldNum: 17, newNum: null, content: '    "setuptools>=45", ' },
+                        { type: 'addition', oldNum: null, newNum: 17, content: '    "setuptools>=45",' },
+                        { type: 'context', oldNum: 18, newNum: 18, content: '    "wheel",' },
+                        { type: 'context', oldNum: 19, newNum: 19, content: ']' }
                     ]
                 }]
             }]
@@ -1064,15 +1318,55 @@
                 if (item.type === 'file') {
                     itemElement.className = 'file-tree-item';
                     itemElement.style.paddingLeft = `${16 + depth * 20}px`;
+                    
+                    // Determine file status indicator and styling
+                    let statusIndicator = '';
+                    let statusClass = '';
+                    const file = item.data;
+                    
+                    switch (file.status) {
+                        case 'added':
+                            statusIndicator = '+ ';
+                            statusClass = ' file-added';
+                            break;
+                        case 'deleted':
+                            statusIndicator = '- ';
+                            statusClass = ' file-deleted';
+                            break;
+                        case 'renamed':
+                            statusIndicator = '→ ';
+                            statusClass = ' file-renamed';
+                            break;
+                        case 'modified':
+                        default:
+                            statusIndicator = '';
+                            statusClass = '';
+                            break;
+                    }
+                    
+                    itemElement.className += statusClass;
+                    
+                    // Handle binary files
+                    let changesDisplay = '';
+                    if (file.binary) {
+                        changesDisplay = '<span class="binary-indicator">Binary file</span>';
+                    } else if (file.additions > 0 || file.deletions > 0) {
+                        changesDisplay = `
+                            <span class="additions">+${file.additions}</span>
+                            <span class="deletions">−${file.deletions}</span>
+                        `;
+                    }
+                    
+                    const fileName = file.status === 'renamed' 
+                        ? `${statusIndicator}${file.oldPath} → ${key}`
+                        : `${statusIndicator}${key}`;
+                    
                     itemElement.innerHTML = `
                         <svg class="file-icon" viewBox="0 0 16 16" fill="currentColor">
                             <path d="M2 1.75A1.75 1.75 0 013.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0113.25 16h-9.5A1.75 1.75 0 012 14.25V1.75zm1.75-.25a.25.25 0 00-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 00.25-.25V6h-2.75A1.75 1.75 0 019 4.25V1.5H3.75z"/>
                         </svg>
-                        <span class="file-name">${key}</span>
-                        <span class="file-changes">
-                            <span class="additions">+${item.data.additions}</span>
-                            <span class="deletions">−${item.data.deletions}</span>
-                        </span>
+                        <span class="file-name" title="${file.status === 'renamed' ? 'Renamed from: ' + file.oldPath : ''}">${fileName}</span>
+                        <span class="file-changes">${changesDisplay}</span>
                     `;
                     
                     // Add click handler to scroll to file
@@ -1185,21 +1479,53 @@
             const anchor = document.createElement('div');
             anchor.id = `${anchorId}-${paneId}`;
             anchor.style.position = 'absolute';
-            anchor.style.top = '-33px'; // Offset to account for pane header (height + border)
+            // anchor.style.top = '-33px'; // Offset to account for pane header (height + border)
             section.style.position = 'relative';
             section.appendChild(anchor);
             
             // File header
             const header = document.createElement('div');
             header.className = 'file-header';
+            
+            // Create file header content with status indicators
+            let fileDisplayPath = file.path;
+            let statusBadge = '';
+            
+            switch (file.status) {
+                case 'added':
+                    statusBadge = '<span class="status-badge status-added">new file</span>';
+                    break;
+                case 'deleted':
+                    statusBadge = '<span class="status-badge status-deleted">deleted</span>';
+                    break;
+                case 'renamed':
+                    fileDisplayPath = `${file.oldPath} → ${file.path}`;
+                    statusBadge = '<span class="status-badge status-renamed">renamed</span>';
+                    break;
+                case 'modified':
+                default:
+                    statusBadge = '';
+                    break;
+            }
+            
+            let statsDisplay = '';
+            if (file.binary) {
+                statsDisplay = '<span class="binary-indicator">Binary file</span>';
+            } else if (file.additions > 0 || file.deletions > 0) {
+                statsDisplay = `
+                    <span class="additions">+${file.additions}</span>
+                    <span class="deletions">−${file.deletions}</span>
+                `;
+            }
+            
             header.innerHTML = `
                 <div>
                     <span class="collapse-icon">▶</span>
-                    <span class="file-path">${file.path}</span>
+                    <span class="file-path">${fileDisplayPath}</span>
+                    ${statusBadge}
                 </div>
                 <div class="file-stats">
-                    <span class="additions">+${file.additions}</span>
-                    <span class="deletions">−${file.deletions}</span>
+                    ${statsDisplay}
                 </div>
             `;
             
@@ -1214,12 +1540,44 @@
             const diffContent = document.createElement('div');
             diffContent.className = 'diff-content';
             
-            file.chunks.forEach(chunk => {
-                chunk.lines.forEach(line => {
-                    const lineElement = createLineElement(line, side);
-                    diffContent.appendChild(lineElement);
+            // Handle different file types
+            if (file.binary) {
+                // Binary file - show placeholder
+                const binaryMessage = document.createElement('div');
+                binaryMessage.className = 'binary-file-message';
+                binaryMessage.innerHTML = `
+                    <div class="binary-file-icon">📄</div>
+                    <div class="binary-file-text">
+                        <strong>Binary file not shown</strong><br>
+                        ${file.status === 'added' ? 'Binary file added' : 
+                          file.status === 'deleted' ? 'Binary file deleted' : 
+                          'Binary file modified'}
+                    </div>
+                `;
+                diffContent.appendChild(binaryMessage);
+            } else if (file.chunks.length === 0) {
+                // Empty file or no changes to show
+                const emptyMessage = document.createElement('div');
+                emptyMessage.className = 'empty-file-message';
+                
+                if (file.status === 'added') {
+                    emptyMessage.innerHTML = '<div class="empty-file-text">Empty file</div>';
+                } else if (file.status === 'deleted') {
+                    emptyMessage.innerHTML = '<div class="empty-file-text">File deleted</div>';
+                } else {
+                    emptyMessage.innerHTML = '<div class="empty-file-text">No changes to display</div>';
+                }
+                
+                diffContent.appendChild(emptyMessage);
+            } else {
+                // Regular file with diff content
+                file.chunks.forEach(chunk => {
+                    chunk.lines.forEach(line => {
+                        const lineElement = createLineElement(line, side);
+                        diffContent.appendChild(lineElement);
+                    });
                 });
-            });
+            }
             
             section.appendChild(diffContent);
             return section;
