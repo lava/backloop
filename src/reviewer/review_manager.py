@@ -7,9 +7,11 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from reviewer.models import Comment
+from reviewer.models import Comment, CommentRequest, GitDiff
 from reviewer.review_session import ReviewSession  
-from reviewer.router import create_review_router
+from fastapi import HTTPException, Path, APIRouter
+from fastapi.responses import FileResponse
+from pathlib import Path as PathLib
 
 
 class ReviewManager:
@@ -36,23 +38,96 @@ class ReviewManager:
                             commit: Optional[str] = None,
                             range: Optional[str] = None,
                             since: Optional[str] = None) -> ReviewSession:
-        """Create a new review session and mount it to the web server."""
+        """Create a new review session and store it for dynamic routing."""
         # Create the review session
         review_session = ReviewSession(commit=commit, range=range, since=since)
         
         # Store it in active reviews
         self.active_reviews[review_session.id] = review_session
         
-        # Include the review router to the main app
-        if self._main_app is not None:
-            review_router = create_review_router(review_session)
-            self._main_app.include_router(review_router, prefix=f"/reviews/{review_session.id}")
-        
         return review_session
     
     def get_review_session(self, review_id: str) -> Optional[ReviewSession]:
         """Get a review session by ID."""
         return self.active_reviews.get(review_id)
+    
+    def create_dynamic_router(self) -> APIRouter:
+        """Create a dynamic router that handles all review paths."""
+        router = APIRouter()
+        
+        # Get the project root directory
+        BASE_DIR = PathLib(__file__).parent.parent.parent
+        
+        @router.get("/reviews/{review_id}")
+        async def get_review_index(review_id: str = Path(...)) -> FileResponse:
+            """Serve the main index.html file for a specific review."""
+            review_session = self.get_review_session(review_id)
+            if not review_session:
+                raise HTTPException(status_code=404, detail="Review not found")
+            
+            index_path = BASE_DIR / "index.html"
+            if not index_path.exists():
+                raise HTTPException(status_code=404, detail="index.html not found")
+            return FileResponse(index_path)
+        
+        @router.get("/reviews/{review_id}/api/diff")
+        async def get_review_diff(review_id: str = Path(...)) -> GitDiff:
+            """Get diff data for a specific review session."""
+            review_session = self.get_review_session(review_id)
+            if not review_session:
+                raise HTTPException(status_code=404, detail="Review not found")
+            return review_session.diff
+        
+        @router.get("/reviews/{review_id}/api/comments")
+        async def get_review_comments(review_id: str = Path(...), file_path: Optional[str] = None) -> List[Comment]:
+            """Get comments for a specific review session."""
+            review_session = self.get_review_session(review_id)
+            if not review_session:
+                raise HTTPException(status_code=404, detail="Review not found")
+            return review_session.comment_service.get_comments(file_path=file_path)
+        
+        @router.post("/reviews/{review_id}/api/comments")
+        async def create_review_comment(request: CommentRequest, review_id: str = Path(...)) -> Comment:
+            """Create a comment for a specific review session."""
+            review_session = self.get_review_session(review_id)
+            if not review_session:
+                raise HTTPException(status_code=404, detail="Review not found")
+            return review_session.comment_service.add_comment(request)
+        
+        @router.get("/reviews/{review_id}/api/comments/{comment_id}")
+        async def get_review_comment(review_id: str = Path(...), comment_id: str = Path(...)) -> Comment:
+            """Get a specific comment for a review session."""
+            review_session = self.get_review_session(review_id)
+            if not review_session:
+                raise HTTPException(status_code=404, detail="Review not found")
+            comment = review_session.comment_service.get_comment(comment_id)
+            if not comment:
+                raise HTTPException(status_code=404, detail="Comment not found")
+            return comment
+        
+        @router.put("/reviews/{review_id}/api/comments/{comment_id}")
+        async def update_review_comment(content: str, review_id: str = Path(...), comment_id: str = Path(...)) -> Comment:
+            """Update a comment for a review session."""
+            review_session = self.get_review_session(review_id)
+            if not review_session:
+                raise HTTPException(status_code=404, detail="Review not found")
+            comment = review_session.comment_service.update_comment(comment_id, content)
+            if not comment:
+                raise HTTPException(status_code=404, detail="Comment not found")
+            return comment
+        
+        @router.delete("/reviews/{review_id}/api/comments/{comment_id}")
+        async def delete_review_comment(review_id: str = Path(...), comment_id: str = Path(...)) -> dict:
+            """Delete a comment from a review session."""
+            review_session = self.get_review_session(review_id)
+            if not review_session:
+                raise HTTPException(status_code=404, detail="Review not found")
+            success = review_session.comment_service.delete_comment(comment_id)
+            if not success:
+                raise HTTPException(status_code=404, detail="Comment not found")
+            return {"message": "Comment deleted successfully"}
+        
+        return router
     
     def remove_review_session(self, review_id: str) -> bool:
         """Remove a review session and unmount it from the web server."""
@@ -84,10 +159,9 @@ class ReviewManager:
             allow_headers=["*"],
         )
         
-        # Include existing review sessions
-        for review_id, review_session in self.active_reviews.items():
-            review_router = create_review_router(review_session)
-            self._main_app.include_router(review_router, prefix=f"/reviews/{review_id}")
+        # Include the dynamic router that handles all review paths
+        dynamic_router = self.create_dynamic_router()
+        self._main_app.include_router(dynamic_router)
         
         # Get a free port
         port = self.get_free_port()

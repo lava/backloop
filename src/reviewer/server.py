@@ -1,10 +1,8 @@
-from typing import Optional
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
-from reviewer.review_session import ReviewSession
-from reviewer.router import create_review_router
+from reviewer.review_manager import ReviewManager
 
 app = FastAPI(title="Git Diff Viewer", version="0.1.0")
 
@@ -17,11 +15,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Create a default review session for standalone mode
-default_session = ReviewSession()
+# Create a review manager and a single review session for standalone mode
+review_manager = ReviewManager()
+default_session = review_manager.create_review_session()
 
-# Include the review router at the root level for standalone usage
-app.include_router(create_review_router(default_session))
+# Include the dynamic router that will handle the single review at /reviews/{review_id}
+dynamic_router = review_manager.create_dynamic_router()
+app.include_router(dynamic_router)
+
+# Redirect root to the review
+@app.get("/")
+async def redirect_to_review() -> RedirectResponse:
+    """Redirect to the single review session."""
+    return RedirectResponse(url=f"/reviews/{default_session.id}")
 
 
 def main() -> None:
