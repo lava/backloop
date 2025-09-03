@@ -1,14 +1,20 @@
+import asyncio
+import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 from mcp.server.fastmcp import FastMCP
 
 from reviewer.git_service import GitService
-from reviewer.models import GitDiff
+from reviewer.models import GitDiff, Comment
 
 
 mcp = FastMCP("Git Review Server")
 git_service = GitService()
+
+# Global state for managing comments
+_pending_comments: List[Comment] = []
+_comment_event = asyncio.Event()
 
 
 @mcp.tool()
@@ -16,7 +22,7 @@ def startreview(
     commit: Optional[str] = None,
     range: Optional[str] = None,
     since: Optional[str] = None
-) -> GitDiff:
+) -> str:
     """Start a code review session by getting git diff data.
     
     Parameters:
@@ -31,17 +37,48 @@ def startreview(
     if param_count == 0:
         if since is None:
             since = "HEAD"
-        return git_service.get_live_diff(since)
+        git_service.get_live_diff(since)
     elif param_count > 1:
         raise ValueError("Cannot specify multiple parameters. Use exactly one of: commit, range, or since")
-    
-    if commit:
-        return git_service.get_commit_diff(commit)
+    elif commit:
+        git_service.get_commit_diff(commit)
     elif range:
-        return git_service.get_range_diff(range)
+        git_service.get_range_diff(range)
     else:
         assert since is not None
-        return git_service.get_live_diff(since)
+        git_service.get_live_diff(since)
+    
+    return "Review session started successfully! Next step: Call the 'await_comments' tool to wait for review comments from the user."
+
+
+@mcp.tool()
+async def await_comments(timeout: Optional[int] = None) -> List[Comment]:
+    """Wait for review comments to be posted by the user.
+    
+    Parameters:
+    - timeout: Maximum time to wait in seconds (default: no timeout)
+    
+    Returns list of comments when available.
+    """
+    global _comment_event, _pending_comments
+    
+    # Clear the event and wait for new comments
+    _comment_event.clear()
+    
+    try:
+        if timeout:
+            await asyncio.wait_for(_comment_event.wait(), timeout=timeout)
+        else:
+            await _comment_event.wait()
+            
+        # Return and clear pending comments
+        comments = _pending_comments.copy()
+        _pending_comments.clear()
+        return comments
+        
+    except asyncio.TimeoutError:
+        return []
+
 
 
 def main() -> None:
