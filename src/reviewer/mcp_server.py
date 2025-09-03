@@ -2,31 +2,24 @@ import asyncio
 import os
 import time
 import uuid
+import socket
+import threading
 from pathlib import Path
 from typing import Optional, List, Dict
 
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
 from mcp.server.fastmcp import FastMCP
-from pydantic_settings import BaseSettings
+import uvicorn
 
 from reviewer.git_service import GitService
 from reviewer.models import GitDiff, Comment
 from reviewer.server import app as review_app
 
 
-class Settings(BaseSettings):
-    """Configuration settings for the MCP server."""
-    host: str = "127.0.0.1"
-    port: int = 8000
-    
-    class Config:
-        env_prefix = "MCP_"
+# Global state for web server
+_web_server_port: Optional[int] = None
+_web_server_thread: Optional[threading.Thread] = None
 
-
-settings = Settings()
-
-# 1) Define MCP server and tools
+# MCP server and tools
 mcp = FastMCP("Git Review Server")
 git_service = GitService()
 
@@ -35,17 +28,36 @@ _pending_comments: List[Comment] = []
 _comment_event = asyncio.Event()
 _active_reviews: Dict[str, dict] = {}
 
-# 2) Build the MCP ASGI app (Streamable HTTP)
-mcp_app = mcp.streamable_http_app()
 
-# 3) Create FastAPI app
-app = FastAPI(title="Git Review Server")
+def get_free_port() -> int:
+    """Get a free port number."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('', 0))
+        s.listen(1)
+        port = s.getsockname()[1]
+    return port
 
-# 4) Mount the MCP endpoint under /mcp
-app.mount("/mcp", mcp_app)
 
-# 5) Mount the existing review server under /reviews
-app.mount("/reviews", review_app)
+def start_web_server() -> int:
+    """Start the web server on a random port and return the port number."""
+    global _web_server_port, _web_server_thread
+    
+    if _web_server_port is not None:
+        return _web_server_port
+    
+    port = get_free_port()
+    
+    def run_server() -> None:
+        uvicorn.run(review_app, host="127.0.0.1", port=port, log_level="warning")
+    
+    _web_server_thread = threading.Thread(target=run_server, daemon=True)
+    _web_server_thread.start()
+    _web_server_port = port
+    
+    # Give the server a moment to start
+    time.sleep(0.5)
+    
+    return port
 
 
 @mcp.tool()
@@ -93,8 +105,9 @@ def startreview(
         "created_at": time.time()
     }
     
-    # Construct the review URL using configured host and port  
-    review_url = f"http://{settings.host}:{settings.port}/reviews"
+    # Start web server if not already running and get URL
+    port = start_web_server()
+    review_url = f"http://127.0.0.1:{port}"
     
     return f"""Review session started successfully!
 
@@ -137,9 +150,8 @@ async def await_comments(timeout: Optional[int] = None) -> List[Comment]:
 
 
 def main() -> None:
-    """Entry point for the combined MCP+FastAPI server."""
-    import uvicorn
-    uvicorn.run(app, host=settings.host, port=settings.port)
+    """Entry point for the stdio MCP server."""
+    mcp.run('stdio')
 
 
 if __name__ == "__main__":
