@@ -43,10 +43,10 @@ class ReviewManager:
         # Store it in active reviews
         self.active_reviews[review_session.id] = review_session
         
-        # Mount the review router to the main app
+        # Include the review router to the main app
         if self._main_app is not None:
             review_router = create_review_router(review_session)
-            self._main_app.mount(f"/reviews/{review_session.id}", review_router)
+            self._main_app.include_router(review_router, prefix=f"/reviews/{review_session.id}")
         
         return review_session
     
@@ -84,10 +84,10 @@ class ReviewManager:
             allow_headers=["*"],
         )
         
-        # Mount existing review sessions
+        # Include existing review sessions
         for review_id, review_session in self.active_reviews.items():
             review_router = create_review_router(review_session)
-            self._main_app.mount(f"/reviews/{review_id}", review_router)
+            self._main_app.include_router(review_router, prefix=f"/reviews/{review_id}")
         
         # Get a free port
         port = self.get_free_port()
