@@ -1574,8 +1574,9 @@
             }
         }
         
-        // Initialize API client
-        const apiClient = new ApiClient();
+        // Initialize API client with correct base URL for review context
+        const reviewId = window.location.pathname.split('/reviews/')[1];
+        const apiClient = new ApiClient(reviewId ? `/reviews/${reviewId}` : '');
 
         // Render diff content
         function renderDiff(diff) {
