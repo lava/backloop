@@ -41,10 +41,12 @@ def main() -> None:
     args = parser.parse_args()
     
     if args.port:
-        uvicorn.run(app, host="127.0.0.1", port=args.port)
+        port = args.port
+        print(f"Review server available at: http://127.0.0.1:{port}")
+        uvicorn.run(app, host="127.0.0.1", port=port)
     else:
         sock, port = get_random_port()
-        print(f"Starting server on port {port}")
+        print(f"Review server available at: http://127.0.0.1:{port}")
         uvicorn.run(app, fd=sock.fileno())
 
 
