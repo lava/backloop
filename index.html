@@ -545,11 +545,30 @@
             background: #fff8c5;
             color: #9a6700;
         }
+        .status-untracked {
+            background: #f6f8fa;
+            color: #656d76;
+        }
 
         .binary-indicator {
             color: #656d76;
             font-style: italic;
             font-size: 12px;
+        }
+        
+        .status-tag {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 3px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .untracked-tag {
+            background: #f6f8fa;
+            color: #8b949e;
+            border: 1px solid #d0d7de;
         }
 
         /* File tree status colors */
@@ -564,6 +583,10 @@
 
         .file-renamed .file-name {
             color: #9a6700;
+        }
+        .file-untracked .file-name {
+            color: #8b949e;
+            opacity: 0.7;
         }
 
         /* Binary file message */
@@ -1345,6 +1368,10 @@
                             statusIndicator = '→ ';
                             statusClass = ' file-renamed';
                             break;
+                        case 'untracked':
+                            statusIndicator = '? ';
+                            statusClass = ' file-untracked';
+                            break;
                         case 'modified':
                         default:
                             statusIndicator = '';
@@ -1354,9 +1381,11 @@
                     
                     itemElement.className += statusClass;
                     
-                    // Handle binary files
+                    // Handle binary files and status tags
                     let changesDisplay = '';
-                    if (file.binary) {
+                    if (file.status === 'untracked') {
+                        changesDisplay = '<span class="status-tag untracked-tag">UNTRACKED</span>';
+                    } else if (file.binary) {
                         changesDisplay = '<span class="binary-indicator">Binary file</span>';
                     } else if (file.additions > 0 || file.deletions > 0) {
                         changesDisplay = `
@@ -1610,6 +1639,9 @@
                 case 'renamed':
                     fileDisplayPath = `${file.oldPath} → ${file.path}`;
                     statusBadge = '<span class="status-badge status-renamed">renamed</span>';
+                    break;
+                case 'untracked':
+                    statusBadge = '<span class="status-badge status-untracked">untracked</span>';
                     break;
                 case 'modified':
                 default:

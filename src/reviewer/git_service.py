@@ -65,6 +65,10 @@ class GitService:
         description = f"Live changes since {since_commit}"
         files = self._parse_diff_output(diff_output)
         
+        # Add untracked files
+        untracked_files = self._get_untracked_files()
+        files.extend(untracked_files)
+        
         return GitDiff(
             files=files,
             commit_hash=None,
@@ -76,6 +80,67 @@ class GitService:
         """Get file contents at a specific commit."""
         cmd = ["git", "show", f"{commit_hash}:{file_path}"]
         return self._run_git_command(cmd)
+    
+    def _get_untracked_files(self) -> List[DiffFile]:
+        """Get untracked files as DiffFile objects."""
+        # Get list of untracked files
+        cmd = ["git", "ls-files", "--others", "--exclude-standard"]
+        output = self._run_git_command(cmd)
+        
+        untracked_files = []
+        if output.strip():
+            for file_path in output.strip().split('\n'):
+                if file_path:  # Skip empty lines
+                    # Read file content to count lines
+                    try:
+                        with open(self.repo_path / file_path, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                            lines = content.split('\n')
+                            # Create a single chunk with all lines as additions
+                            diff_lines = []
+                            for i, line in enumerate(lines):
+                                if i < len(lines) - 1 or line:  # Don't add empty last line
+                                    diff_lines.append(DiffLine(
+                                        type=LineType.ADDITION,
+                                        old_num=None,
+                                        new_num=i + 1,
+                                        content=line
+                                    ))
+                            
+                            chunks = []
+                            if diff_lines:
+                                chunks.append(DiffChunk(
+                                    old_start=1,
+                                    old_lines=0,
+                                    new_start=1,
+                                    new_lines=len(diff_lines),
+                                    lines=diff_lines
+                                ))
+                            
+                            untracked_files.append(DiffFile(
+                                path=file_path,
+                                old_path=None,
+                                additions=len(diff_lines),
+                                deletions=0,
+                                chunks=chunks,
+                                is_binary=False,
+                                is_renamed=False,
+                                status="untracked"
+                            ))
+                    except (UnicodeDecodeError, IOError):
+                        # Handle binary files or files that can't be read
+                        untracked_files.append(DiffFile(
+                            path=file_path,
+                            old_path=None,
+                            additions=0,
+                            deletions=0,
+                            chunks=[],
+                            is_binary=True,
+                            is_renamed=False,
+                            status="untracked"
+                        ))
+        
+        return untracked_files
     
     def _run_git_command(self, cmd: List[str]) -> str:
         """Run a git command and return output."""
