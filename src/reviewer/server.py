@@ -35,6 +35,14 @@ async def get_review_page() -> FileResponse:
         raise HTTPException(status_code=404, detail="review.html not found")
     return FileResponse(review_path)
 
+@app.get("/mock")
+async def get_mock_page() -> FileResponse:
+    """Serve the mock demo page."""
+    mock_path = BASE_DIR / "mock.html"
+    if not mock_path.exists():
+        raise HTTPException(status_code=404, detail="mock.html not found")
+    return FileResponse(mock_path)
+
 @app.get("/mock-data.js")
 async def get_mock_data() -> FileResponse:
     """Serve the mock data JavaScript file."""

@@ -58,6 +58,22 @@ class ReviewManager:
         # Get the project root directory
         BASE_DIR = PathLib(__file__).parent.parent.parent
         
+        @router.get("/mock")
+        async def get_mock_page() -> FileResponse:
+            """Serve the mock demo page."""
+            mock_path = BASE_DIR / "mock.html"
+            if not mock_path.exists():
+                raise HTTPException(status_code=404, detail="mock.html not found")
+            return FileResponse(mock_path)
+        
+        @router.get("/mock-data.js")
+        async def get_mock_data() -> FileResponse:
+            """Serve the mock data JavaScript file."""
+            mock_data_path = BASE_DIR / "mock-data.js"
+            if not mock_data_path.exists():
+                raise HTTPException(status_code=404, detail="mock-data.js not found")
+            return FileResponse(mock_data_path, media_type="application/javascript")
+        
         @router.get("/reviews/{review_id}")
         async def get_review_index(review_id: str = Path(...)) -> FileResponse:
             """Serve the main index.html file for a specific review."""

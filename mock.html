@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Git Diff Viewer - Mock Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            background-color: #f6f8fa;
+            color: #1f2328;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .header {
+            background: #fff;
+            border-bottom: 1px solid #d0d7de;
+            padding: 16px 20px;
+            box-shadow: 0 1px 3px rgba(16,22,26,0.1);
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .main-container {
+            display: flex;
+            height: calc(100vh - 65px);
+            background: #fff;
+        }
+
+        .files-sidebar {
+            width: 300px;
+            border-right: 1px solid #d0d7de;
+            background: #fff;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .files-sidebar-header {
+            background: #f6f8fa;
+            padding: 12px 16px;
+            border-bottom: 1px solid #d0d7de;
+            font-weight: 600;
+            font-size: 14px;
+            color: #24292f;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .files-count {
+            background: #eaeef2;
+            color: #656d76;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .diff-container {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .diff-pane {
+            flex: 1;
+            overflow-y: auto;
+            background: #fff;
+            border-right: 1px solid #d0d7de;
+        }
+
+        .diff-pane:last-child {
+            border-right: none;
+        }
+
+        .diff-pane-header {
+            background: #f6f8fa;
+            border-bottom: 1px solid #d0d7de;
+            padding: 8px 12px;
+            font-weight: 600;
+            font-size: 14px;
+            color: #656d76;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .file-section {
+            border-bottom: 1px solid #d0d7de;
+        }
+
+        .file-header {
+            background: #f6f8fa;
+            padding: 8px 12px;
+            font-weight: 600;
+            font-size: 14px;
+            color: #24292f;
+            border-bottom: 1px solid #d0d7de;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .diff-line {
+            display: flex;
+            font-family: 'SFMono-Regular', 'Consolas', 'Liberation Mono', 'Menlo', monospace;
+            font-size: 12px;
+            line-height: 20px;
+        }
+
+        .line-number {
+            background: #f6f8fa;
+            border-right: 1px solid #d0d7de;
+            color: #656d76;
+            padding: 0 8px;
+            text-align: right;
+            min-width: 80px;
+            user-select: none;
+            display: flex;
+            align-items: center;
+        }
+
+        .line-content {
+            flex: 1;
+            padding: 0 8px;
+            white-space: pre;
+            overflow-x: auto;
+        }
+
+        .addition-line {
+            background-color: #d1f4d0;
+        }
+
+        .deletion-line {
+            background-color: #ffd8d3;
+        }
+
+        .context-line {
+            background-color: #fff;
+        }
+
+        .addition-line .line-content {
+            background-color: #d1f4d0;
+        }
+
+        .deletion-line .line-content {
+            background-color: #ffd8d3;
+        }
+
+        .empty-line {
+            background-color: #fafbfc;
+        }
+
+        .file-tree {
+            padding: 8px 0;
+        }
+
+        .file-tree-item {
+            display: flex;
+            align-items: center;
+            padding: 6px 16px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #24292f;
+        }
+
+        .file-tree-item:hover {
+            background-color: #f6f8fa;
+        }
+
+        .file-tree-item.active {
+            background-color: #dbeafe;
+        }
+
+        .file-name {
+            margin-left: 6px;
+            flex: 1;
+        }
+
+        .file-changes {
+            margin-left: auto;
+            font-size: 12px;
+        }
+
+        .additions {
+            color: #1a7f37;
+            margin-right: 4px;
+        }
+
+        .deletions {
+            color: #d1242f;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Git Diff Viewer</h1>
+    </div>
+
+    <div class="main-container">
+        <div class="files-sidebar">
+            <div class="files-sidebar-header">
+                Files changed
+                <span class="files-count" id="files-count">0</span>
+            </div>
+            <div class="file-tree" id="file-tree">
+                <!-- File tree will be populated here -->
+            </div>
+        </div>
+
+        <div class="diff-container">
+            <div class="diff-pane" id="old-pane">
+                <div class="diff-pane-header">Original</div>
+                <div id="old-content">
+                    <!-- Original file content will be populated here -->
+                </div>
+            </div>
+            <div class="diff-pane" id="new-pane">
+                <div class="diff-pane-header">Modified</div>
+                <div id="new-content">
+                    <!-- Modified file content will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import mock data
+        import mockDiff from './mock-data.js';
+        
+        // Mock demo - no API needed
+        // API Client stub for compatibility
+        class ApiClient {
+            constructor(baseUrl = '') {
+                this.baseUrl = baseUrl;
+            }
+            
+            async getDiff(options = {}) {
+                const { commit, range } = options;
+                
+                const params = new URLSearchParams();
+                if (commit) params.append('commit', commit);
+                if (range) params.append('range', range);
+                
+                const response = await fetch(`${this.baseUrl}/api/diff?${params}`);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch diff: ${response.statusText}`);
+                }
+                return await response.json();
+            }
+            
+            async getLiveDiff(since = 'HEAD') {
+                const params = new URLSearchParams();
+                if (since) params.append('since', since);
+                
+                const response = await fetch(`${this.baseUrl}/api/diff/live?${params}`);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch live diff: ${response.statusText}`);
+                }
+                return await response.json();
+            }
+        }
+        
+        // Initialize API client
+        const apiClient = new ApiClient();
+
+        // Render diff content
+        function renderDiff(diff) {
+            const oldContent = document.getElementById('old-content');
+            const newContent = document.getElementById('new-content');
+            const fileTree = document.getElementById('file-tree');
+            const filesCount = document.getElementById('files-count');
+            
+            oldContent.innerHTML = '';
+            newContent.innerHTML = '';
+            fileTree.innerHTML = '';
+            
+            // Update files count
+            filesCount.textContent = diff.files.length;
+            
+            // Render file tree
+            diff.files.forEach(file => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-tree-item';
+                fileItem.innerHTML = `
+                    <span class="file-name">${file.path}</span>
+                    <span class="file-changes">
+                        <span class="additions">+${file.additions}</span>
+                        <span class="deletions">−${file.deletions}</span>
+                    </span>
+                `;
+                fileTree.appendChild(fileItem);
+            });
+
+            // Render diff content
+            diff.files.forEach(file => {
+                // Create file sections
+                const oldFileSection = createFileSection(file, 'old');
+                const newFileSection = createFileSection(file, 'new');
+                
+                oldContent.appendChild(oldFileSection);
+                newContent.appendChild(newFileSection);
+            });
+        }
+
+        function createFileSection(file, side) {
+            const section = document.createElement('div');
+            section.className = 'file-section';
+            
+            // File header
+            const header = document.createElement('div');
+            header.className = 'file-header';
+            header.innerHTML = `<span>${file.path}</span>`;
+            section.appendChild(header);
+            
+            // Diff content
+            const diffContent = document.createElement('div');
+            diffContent.className = 'diff-content';
+            
+            if (file.chunks && file.chunks.length > 0) {
+                file.chunks.forEach(chunk => {
+                    chunk.lines.forEach(line => {
+                        const lineElement = createLineElement(line, side);
+                        if (lineElement) {
+                            diffContent.appendChild(lineElement);
+                        }
+                    });
+                });
+            }
+            
+            section.appendChild(diffContent);
+            return section;
+        }
+
+        function createLineElement(line, side) {
+            const lineDiv = document.createElement('div');
+            lineDiv.className = 'diff-line';
+            
+            // Determine what to show based on side and line type
+            let shouldShow = true;
+            let cssClass = 'context-line';
+            let indicator = '';
+            
+            if (side === 'old') {
+                if (line.type === 'addition') {
+                    shouldShow = false; // Don't show additions in old pane
+                } else {
+                    if (line.type === 'deletion') {
+                        cssClass = 'deletion-line';
+                        indicator = '−';
+                    }
+                }
+            } else { // new side
+                if (line.type === 'deletion') {
+                    shouldShow = false; // Don't show deletions in new pane
+                } else {
+                    if (line.type === 'addition') {
+                        cssClass = 'addition-line';
+                        indicator = '+';
+                    }
+                }
+            }
+            
+            if (!shouldShow) {
+                // Create empty line to maintain alignment
+                lineDiv.className = 'diff-line empty-line';
+                lineDiv.innerHTML = `
+                    <div class="line-number"></div>
+                    <div class="line-content"></div>
+                `;
+                return lineDiv;
+            }
+            
+            lineDiv.className += ' ' + cssClass;
+            lineDiv.innerHTML = `
+                <div class="line-number">${line.oldNum || ''} ${indicator} ${line.newNum || ''}</div>
+                <div class="line-content">${escapeHtml(line.content || '')}</div>
+            `;
+            
+            return lineDiv;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Synchronized scrolling
+        function setupSynchronizedScrolling() {
+            const oldPane = document.getElementById('old-pane');
+            const newPane = document.getElementById('new-pane');
+            let isScrolling = false;
+
+            function syncScroll(source, target) {
+                if (isScrolling) return;
+                isScrolling = true;
+                target.scrollTop = source.scrollTop;
+                setTimeout(() => isScrolling = false, 10);
+            }
+
+            oldPane.addEventListener('scroll', () => syncScroll(oldPane, newPane));
+            newPane.addEventListener('scroll', () => syncScroll(newPane, oldPane));
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // This is a mock demo page - always use mock data
+                const diffData = mockDiff;
+                
+                // Add a banner indicating this is mock data
+                const banner = document.createElement('div');
+                banner.style.cssText = 'background: #ffa500; color: #333; padding: 10px; text-align: center; font-weight: bold;';
+                banner.textContent = 'Demo Mode: Viewing Mock Data';
+                document.body.insertBefore(banner, document.body.firstChild);
+                
+                // Render the diff
+                renderDiff(diffData);
+                setupSynchronizedScrolling();
+                
+            } catch (error) {
+                console.error('Failed to initialize mock demo:', error);
+            }
+        });
+    </script>
+</body>
+</html>
