@@ -753,12 +753,12 @@
                 }
                 commentsData[key].push(comment);
                 
-                // Store parent element before removing form
-                const parentElement = form.parentElement;
+                // Find the line element to insert comment after
+                const lineElement = findLineElement(filePath, lineNumber, side);
                 
                 // Remove form and display comment with queue position
                 form.remove();
-                displayCommentWithQueue(comment, lineNumber, side, parentElement);
+                displayCommentWithQueue(comment, lineNumber, side, lineElement);
                 
                 console.log(`Comment added at queue position ${queuePosition}:`, comment);
             } catch (error) {
@@ -781,21 +781,63 @@
                 }
                 commentsData[key].push(comment);
                 
-                // Store parent element before removing form
-                const parentElement = form.parentElement;
+                // Find the line element to insert comment after
+                const lineElement = findLineElement(filePath, lineNumber, side);
                 
                 form.remove();
-                displayCommentWithQueue(comment, lineNumber, side, parentElement);
+                displayCommentWithQueue(comment, lineNumber, side, lineElement);
             }
         }
         
-        function displayCommentWithQueue(comment, lineNumber, side, parentElement) {
-            console.log('Displaying comment:', comment, 'in parent:', parentElement);
+        function findLineElement(filePath, lineNumber, side) {
+            // Find the file section first
+            const fileSections = document.querySelectorAll('.file-section');
+            let targetFileSection = null;
+            
+            for (const section of fileSections) {
+                const filePathElement = section.querySelector('.file-path');
+                if (filePathElement && filePathElement.textContent === filePath) {
+                    targetFileSection = section;
+                    break;
+                }
+            }
+            
+            if (!targetFileSection) {
+                console.error('Could not find file section for:', filePath);
+                return null;
+            }
+            
+            // Find the specific line within that file section
+            const diffLines = targetFileSection.querySelectorAll('.diff-line');
+            for (const line of diffLines) {
+                const lineNumberElement = side === 'old' ? 
+                    line.querySelector('.old-line-num') : 
+                    line.querySelector('.new-line-num');
+                    
+                if (lineNumberElement && parseInt(lineNumberElement.textContent) === lineNumber) {
+                    return line;
+                }
+            }
+            
+            console.error('Could not find line element for:', filePath, lineNumber, side);
+            return targetFileSection; // Fallback to file section
+        }
+        
+        function displayCommentWithQueue(comment, lineNumber, side, lineElement) {
+            console.log('Displaying comment:', comment, 'after line element:', lineElement);
+            
+            if (!lineElement) {
+                console.error('Line element is null, cannot display comment');
+                return;
+            }
             
             // Create comment display element
             const commentDiv = document.createElement('div');
             commentDiv.className = 'comment-thread';
             commentDiv.dataset.commentId = comment.id;
+            commentDiv.style.marginLeft = '0';
+            commentDiv.style.marginRight = '0';
+            commentDiv.style.width = '100%';
             
             // Escape HTML content to prevent issues
             const escapeHtml = (text) => {
@@ -823,12 +865,12 @@
                 </div>
             `;
             
-            // Insert the comment display
-            if (parentElement) {
-                parentElement.appendChild(commentDiv);
-                console.log('Comment display element added to DOM');
+            // Insert the comment display after the line element
+            if (lineElement.parentElement) {
+                lineElement.parentElement.insertBefore(commentDiv, lineElement.nextSibling);
+                console.log('Comment display element inserted after line element');
             } else {
-                console.error('Parent element is null, cannot display comment');
+                console.error('Line element has no parent, cannot insert comment');
             }
         }
         
