@@ -1141,15 +1141,13 @@
                 <span class="new-line-num">${newLineNum}</span>
             `;
             
-            // Add click handler for comments
+            // Store data attributes for later binding
             const actualLineNum = side === 'old' ? line.oldNum : line.newNum;
             if (actualLineNum) {
-                lineNumberDiv.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    console.log('Line clicked:', filePath, actualLineNum, side);
-                    window.showCommentForm(filePath, actualLineNum, side, lineDiv);
-                });
+                lineNumberDiv.dataset.filePath = filePath;
+                lineNumberDiv.dataset.lineNum = actualLineNum;
+                lineNumberDiv.dataset.side = side;
+                lineNumberDiv.classList.add('clickable-line-number');
             }
             
             const lineContentDiv = document.createElement('div');
@@ -1269,6 +1267,23 @@
                 // Render the diff
                 renderDiff(diffData);
                 setupSynchronizedScrolling();
+                
+                // Add click handlers to all line numbers after rendering
+                setTimeout(() => {
+                    document.querySelectorAll('.clickable-line-number').forEach(lineNumEl => {
+                        lineNumEl.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const filePath = lineNumEl.dataset.filePath;
+                            const lineNum = lineNumEl.dataset.lineNum;
+                            const side = lineNumEl.dataset.side;
+                            const lineDiv = lineNumEl.parentElement;
+                            console.log('Line number clicked:', filePath, lineNum, side);
+                            window.showCommentForm(filePath, lineNum, side, lineDiv);
+                        });
+                    });
+                    console.log('Added click handlers to', document.querySelectorAll('.clickable-line-number').length, 'line numbers');
+                }, 100);
                 
             } catch (error) {
                 console.error('Failed to initialize application:', error);
