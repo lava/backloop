@@ -753,9 +753,12 @@
                 }
                 commentsData[key].push(comment);
                 
+                // Store parent element before removing form
+                const parentElement = form.parentElement;
+                
                 // Remove form and display comment with queue position
                 form.remove();
-                displayCommentWithQueue(comment, lineNumber, side, form.parentElement);
+                displayCommentWithQueue(comment, lineNumber, side, parentElement);
                 
                 console.log(`Comment added at queue position ${queuePosition}:`, comment);
             } catch (error) {
@@ -778,21 +781,34 @@
                 }
                 commentsData[key].push(comment);
                 
+                // Store parent element before removing form
+                const parentElement = form.parentElement;
+                
                 form.remove();
-                displayCommentWithQueue(comment, lineNumber, side, form.parentElement);
+                displayCommentWithQueue(comment, lineNumber, side, parentElement);
             }
         }
         
         function displayCommentWithQueue(comment, lineNumber, side, parentElement) {
+            console.log('Displaying comment:', comment, 'in parent:', parentElement);
+            
             // Create comment display element
             const commentDiv = document.createElement('div');
             commentDiv.className = 'comment-thread';
             commentDiv.dataset.commentId = comment.id;
+            
+            // Escape HTML content to prevent issues
+            const escapeHtml = (text) => {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            };
+            
             commentDiv.innerHTML = `
                 <div class="comment">
                     <div class="comment-header">
-                        <span class="comment-author">${comment.author}</span>
-                        <span class="comment-timestamp">${comment.timestamp}</span>
+                        <span class="comment-author">${escapeHtml(comment.author)}</span>
+                        <span class="comment-timestamp">${escapeHtml(comment.timestamp)}</span>
                         ${comment.queuePosition ? `
                         <span style="background: #0969da; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">
                             Queue #${comment.queuePosition}
@@ -803,12 +819,17 @@
                             ×
                         </button>
                     </div>
-                    <div class="comment-body">${comment.content}</div>
+                    <div class="comment-body">${escapeHtml(comment.content)}</div>
                 </div>
             `;
             
             // Insert the comment display
-            parentElement.appendChild(commentDiv);
+            if (parentElement) {
+                parentElement.appendChild(commentDiv);
+                console.log('Comment display element added to DOM');
+            } else {
+                console.error('Parent element is null, cannot display comment');
+            }
         }
         
         async function deleteComment(commentId, buttonElement) {
