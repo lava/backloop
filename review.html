@@ -1142,12 +1142,33 @@
             `;
             
             // Store data attributes for later binding
-            const actualLineNum = side === 'old' ? line.oldNum : line.newNum;
+            // For deletions in old pane, use oldNum; for additions in new pane, use newNum
+            // For context lines, use the appropriate number for the side
+            let actualLineNum = null;
+            if (side === 'old') {
+                actualLineNum = line.oldNum || (line.type === 'context' ? line.oldNum : null);
+            } else {
+                actualLineNum = line.newNum || (line.type === 'context' ? line.newNum : null);
+            }
+            
             if (actualLineNum) {
                 lineNumberDiv.dataset.filePath = filePath;
                 lineNumberDiv.dataset.lineNum = actualLineNum;
                 lineNumberDiv.dataset.side = side;
                 lineNumberDiv.classList.add('clickable-line-number');
+                lineNumberDiv.style.cursor = 'pointer';  // Visual feedback
+                
+                // Add immediate click handler
+                lineNumberDiv.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Direct click:', filePath, actualLineNum, side);
+                    if (window.showCommentForm) {
+                        window.showCommentForm(filePath, actualLineNum, side, lineDiv);
+                    } else {
+                        console.error('showCommentForm not available');
+                    }
+                });
             }
             
             const lineContentDiv = document.createElement('div');
