@@ -728,22 +728,32 @@
         window.submitComment = submitComment;
         
         // Setup global click handler for line numbers (like old index.html)
+        console.log('Setting up global click handler...');
         document.addEventListener('click', (e) => {
+            console.log('Document clicked, target:', e.target, 'className:', e.target.className);
+            
             // Check if clicking on line number or its children
             const lineNumber = e.target.closest('.line-number');
+            console.log('Found line-number element?', lineNumber);
             if (!lineNumber) return;
 
             e.preventDefault();
             e.stopPropagation();
 
             const lineElement = lineNumber.closest('.diff-line');
-            if (!lineElement || lineElement.classList.contains('empty-line')) return;
+            console.log('Found diff-line?', lineElement);
+            if (!lineElement || lineElement.classList.contains('empty-line')) {
+                console.log('Line element is empty or not found');
+                return;
+            }
 
             // Extract line information
             const fileSection = lineElement.closest('.file-section');
+            console.log('Found file-section?', fileSection);
             if (!fileSection) return;
             
             const filePathEl = fileSection.querySelector('.file-path');
+            console.log('Found file-path element?', filePathEl);
             if (!filePathEl) return;
             
             const filePath = filePathEl.textContent;
@@ -755,6 +765,8 @@
             const oldNum = oldNumEl ? oldNumEl.textContent.trim() : null;
             const newNum = newNumEl ? newNumEl.textContent.trim() : null;
             
+            console.log('Line numbers - old:', oldNum, 'new:', newNum, 'side:', side);
+            
             // Use the appropriate line number for the side
             const lineNum = side === 'old' ? oldNum : newNum;
             
@@ -762,8 +774,11 @@
                 console.log('Line clicked (global handler):', filePath, lineNum, side);
                 // Show comment form
                 showCommentForm(filePath, lineNum, side, lineElement);
+            } else {
+                console.log('No line number found for side:', side);
             }
         });
+        console.log('Global click handler setup complete.');
     </script>
 
     <script type="module">
