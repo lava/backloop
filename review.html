@@ -726,6 +726,44 @@
         // Make functions available globally
         window.showCommentForm = showCommentForm;
         window.submitComment = submitComment;
+        
+        // Setup global click handler for line numbers (like old index.html)
+        document.addEventListener('click', (e) => {
+            // Check if clicking on line number or its children
+            const lineNumber = e.target.closest('.line-number');
+            if (!lineNumber) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            const lineElement = lineNumber.closest('.diff-line');
+            if (!lineElement || lineElement.classList.contains('empty-line')) return;
+
+            // Extract line information
+            const fileSection = lineElement.closest('.file-section');
+            if (!fileSection) return;
+            
+            const filePathEl = fileSection.querySelector('.file-path');
+            if (!filePathEl) return;
+            
+            const filePath = filePathEl.textContent;
+            const diffPane = lineElement.closest('.diff-pane');
+            const side = diffPane.id === 'old-pane' ? 'old' : 'new';
+            
+            const oldNumEl = lineNumber.querySelector('.old-line-num');
+            const newNumEl = lineNumber.querySelector('.new-line-num');
+            const oldNum = oldNumEl ? oldNumEl.textContent.trim() : null;
+            const newNum = newNumEl ? newNumEl.textContent.trim() : null;
+            
+            // Use the appropriate line number for the side
+            const lineNum = side === 'old' ? oldNum : newNum;
+            
+            if (lineNum) {
+                console.log('Line clicked (global handler):', filePath, lineNum, side);
+                // Show comment form
+                showCommentForm(filePath, lineNum, side, lineElement);
+            }
+        });
     </script>
 
     <script type="module">
@@ -1146,31 +1184,10 @@
                 <span class="new-line-num">${newLineNum}</span>
             `;
             
-            // Store data attributes for later binding
-            // For deletions in old pane, use oldNum; for additions in new pane, use newNum
-            // For context lines, use the appropriate number for the side
-            let actualLineNum = null;
-            if (side === 'old') {
-                actualLineNum = line.oldNum || (line.type === 'context' ? line.oldNum : null);
-            } else {
-                actualLineNum = line.newNum || (line.type === 'context' ? line.newNum : null);
-            }
-            
-            if (actualLineNum) {
-                lineNumberDiv.dataset.filePath = filePath;
-                lineNumberDiv.dataset.lineNum = actualLineNum;
-                lineNumberDiv.dataset.side = side;
-                lineNumberDiv.classList.add('clickable-line-number');
+            // Just mark it as clickable, the global handler will handle clicks
+            const hasLineNum = (side === 'old' && line.oldNum) || (side === 'new' && line.newNum);
+            if (hasLineNum) {
                 lineNumberDiv.style.cursor = 'pointer';  // Visual feedback
-                
-                // Add immediate click handler
-                lineNumberDiv.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    console.log('Direct click:', filePath, actualLineNum, side);
-                    // Call the global function
-                    showCommentForm(filePath, actualLineNum, side, lineDiv);
-                });
             }
             
             const lineContentDiv = document.createElement('div');
