@@ -1023,6 +1023,13 @@
             }
         }
         
+        // Utility function for escaping HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
         // File editing functionality
         async function openFileEditor(filePath, lineNumber = null) {
             try {
