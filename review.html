@@ -627,6 +627,144 @@
             color: #8b949e;
             opacity: 0.7;
         }
+
+        /* File editing styles */
+        .edit-button {
+            background: #0969da;
+            color: white;
+            border: 1px solid #0969da;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-left: 8px;
+            transition: background-color 0.2s;
+        }
+
+        .edit-button:hover {
+            background: #0550ae;
+            border-color: #0550ae;
+        }
+
+        .edit-button:disabled {
+            background: #8b949e;
+            border-color: #8b949e;
+            cursor: not-allowed;
+        }
+
+        .edit-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .edit-modal-content {
+            background: white;
+            border-radius: 6px;
+            width: 90%;
+            height: 80%;
+            max-width: 1200px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+        }
+
+        .edit-modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #d0d7de;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f6f8fa;
+            border-radius: 6px 6px 0 0;
+        }
+
+        .edit-modal-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #24292f;
+        }
+
+        .edit-modal-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #656d76;
+            padding: 4px;
+        }
+
+        .edit-modal-close:hover {
+            color: #24292f;
+        }
+
+        .edit-modal-body {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .edit-line-numbers {
+            width: 60px;
+            background: #f6f8fa;
+            border-right: 1px solid #d0d7de;
+            font-family: 'SFMono-Regular', 'Consolas', 'Liberation Mono', 'Menlo', monospace;
+            font-size: 12px;
+            line-height: 16px;
+            padding: 12px 8px;
+            color: #656d76;
+            overflow: hidden;
+            text-align: right;
+            user-select: none;
+        }
+
+        .edit-textarea {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-family: 'SFMono-Regular', 'Consolas', 'Liberation Mono', 'Menlo', monospace;
+            font-size: 12px;
+            line-height: 16px;
+            padding: 12px;
+            resize: none;
+            white-space: pre;
+            overflow-wrap: normal;
+            overflow-x: auto;
+        }
+
+        .edit-modal-footer {
+            padding: 16px 20px;
+            border-top: 1px solid #d0d7de;
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            background: #f6f8fa;
+        }
+
+        .line-edit-indicator {
+            position: absolute;
+            right: 2px;
+            top: 2px;
+            background: #0969da;
+            color: white;
+            border-radius: 2px;
+            padding: 1px 4px;
+            font-size: 10px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .line-edit-indicator:hover {
+            background: #0550ae;
+        }
     </style>
 </head>
 <body>
@@ -885,10 +1023,180 @@
             }
         }
         
+        // File editing functionality
+        async function openFileEditor(filePath, lineNumber = null) {
+            try {
+                // First, try to read the file content from the file system
+                // In a real implementation, this would be an API call
+                const response = await fetch(`/api/file-content?path=${encodeURIComponent(filePath)}`);
+                let fileContent = '';
+                
+                if (response.ok) {
+                    fileContent = await response.text();
+                } else {
+                    // If we can't read the file, start with empty content
+                    console.warn('Could not read file, starting with empty content');
+                    fileContent = '';
+                }
+                
+                showEditModal(filePath, fileContent, lineNumber);
+                
+            } catch (error) {
+                console.error('Error opening file editor:', error);
+                alert('Failed to open file editor: ' + error.message);
+            }
+        }
+        
+        function showEditModal(filePath, content, jumpToLine = null) {
+            // Remove existing modal if any
+            const existingModal = document.querySelector('.edit-modal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            const modal = document.createElement('div');
+            modal.className = 'edit-modal';
+            
+            // Generate line numbers
+            const lines = content.split('\n');
+            const lineNumbers = lines.map((_, i) => i + 1).join('\n');
+            
+            modal.innerHTML = `
+                <div class="edit-modal-content">
+                    <div class="edit-modal-header">
+                        <div class="edit-modal-title">Edit: ${escapeHtml(filePath)}</div>
+                        <button class="edit-modal-close" onclick="closeEditModal()">&times;</button>
+                    </div>
+                    <div class="edit-modal-body">
+                        <div class="edit-line-numbers">${lineNumbers}</div>
+                        <textarea class="edit-textarea" data-file-path="${escapeHtml(filePath)}" data-original-content="${escapeHtml(content)}">${escapeHtml(content)}</textarea>
+                    </div>
+                    <div class="edit-modal-footer">
+                        <button class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+                        <button class="btn btn-primary" onclick="saveFileEdit()">Save Changes</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            const textarea = modal.querySelector('.edit-textarea');
+            textarea.focus();
+            
+            // Set up line number synchronization
+            const lineNumbersEl = modal.querySelector('.edit-line-numbers');
+            textarea.addEventListener('scroll', () => {
+                lineNumbersEl.scrollTop = textarea.scrollTop;
+            });
+            
+            // Update line numbers on content change
+            textarea.addEventListener('input', () => {
+                const newLines = textarea.value.split('\n');
+                const newLineNumbers = newLines.map((_, i) => i + 1).join('\n');
+                lineNumbersEl.textContent = newLineNumbers;
+            });
+            
+            // Jump to specific line if requested
+            if (jumpToLine) {
+                const lineHeight = 16; // matches CSS line-height
+                const targetScrollTop = (jumpToLine - 1) * lineHeight;
+                textarea.scrollTop = targetScrollTop;
+                lineNumbersEl.scrollTop = targetScrollTop;
+                
+                // Select the line
+                setTimeout(() => {
+                    const startPos = content.split('\n').slice(0, jumpToLine - 1).join('\n').length + (jumpToLine > 1 ? 1 : 0);
+                    const endPos = startPos + (lines[jumpToLine - 1] ? lines[jumpToLine - 1].length : 0);
+                    textarea.setSelectionRange(startPos, endPos);
+                }, 100);
+            }
+        }
+        
+        function closeEditModal() {
+            const modal = document.querySelector('.edit-modal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+        
+        async function saveFileEdit() {
+            const modal = document.querySelector('.edit-modal');
+            if (!modal) return;
+            
+            const textarea = modal.querySelector('.edit-textarea');
+            const filePath = textarea.dataset.filePath;
+            const originalContent = textarea.dataset.originalContent;
+            const newContent = textarea.value;
+            
+            try {
+                // Get the original content to create a proper diff
+                const originalLines = originalContent.split('\n');
+                const newLines = newContent.split('\n');
+                
+                // For simplicity, replace the entire file content
+                const response = await fetch('/api/edit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        filename: filePath,
+                        start_line: 1,
+                        end_line: originalLines.length,
+                        expected_content: originalContent,
+                        new_content: newContent
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Failed to save file');
+                }
+                
+                const result = await response.json();
+                console.log('File saved successfully:', result);
+                
+                // Close modal
+                closeEditModal();
+                
+                // Refresh the diff view to show the new changes
+                window.location.reload();
+                
+            } catch (error) {
+                console.error('Error saving file:', error);
+                alert('Failed to save file: ' + error.message);
+            }
+        }
+        
+        function showLineEditOption(lineElement, filePath, lineNumber, side) {
+            // Remove existing edit indicators
+            const existingIndicators = lineElement.querySelectorAll('.line-edit-indicator');
+            existingIndicators.forEach(indicator => indicator.remove());
+            
+            // Add edit indicator
+            const editIndicator = document.createElement('div');
+            editIndicator.className = 'line-edit-indicator';
+            editIndicator.textContent = 'Edit';
+            editIndicator.title = 'Edit this file';
+            editIndicator.onclick = (e) => {
+                e.stopPropagation();
+                openFileEditor(filePath, parseInt(lineNumber));
+            };
+            
+            const lineNumberEl = lineElement.querySelector('.line-number');
+            if (lineNumberEl) {
+                lineNumberEl.style.position = 'relative';
+                lineNumberEl.appendChild(editIndicator);
+            }
+        }
+
         // Make functions available globally
         window.showCommentForm = showCommentForm;
         window.submitComment = submitComment;
         window.deleteComment = deleteComment;
+        window.openFileEditor = openFileEditor;
+        window.closeEditModal = closeEditModal;
+        window.saveFileEdit = saveFileEdit;
         
         // Setup global click handler for line numbers (like old index.html)
         console.log('Setting up global click handler...');
@@ -1260,11 +1568,18 @@
                 fileStats = `<span class="file-stats"><span class="additions">+${file.additions}</span> <span class="deletions">-${file.deletions}</span></span>`;
             }
             
+            // Add edit button for live mode
+            let editButton = '';
+            if (live) {
+                editButton = `<button class="edit-button" onclick="openFileEditor('${file.path.replace(/'/g, "\\'")}')">Edit</button>`;
+            }
+            
             header.innerHTML = `
                 <div style="display: flex; align-items: center;">
                     <span class="collapse-icon">▶</span>
                     <span class="file-path">${file.path}</span>
                     ${statusBadge}
+                    ${editButton}
                 </div>
                 ${fileStats}
             `;

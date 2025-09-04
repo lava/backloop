@@ -115,4 +115,33 @@ def create_api_router() -> APIRouter:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error editing file: {str(e)}")
 
+    @router.get("/api/file-content")
+    async def get_file_content(path: str) -> str:
+        """Get the content of a file."""
+        try:
+            # Resolve the file path
+            file_path = Path(path)
+            if not file_path.is_absolute():
+                # Make it relative to current working directory
+                file_path = Path.cwd() / file_path
+            
+            # Check if file exists
+            if not file_path.exists():
+                raise HTTPException(status_code=404, detail=f"File not found: {path}")
+            
+            # Check if it's actually a file
+            if not file_path.is_file():
+                raise HTTPException(status_code=400, detail=f"Path is not a file: {path}")
+            
+            # Read the file content
+            content = file_path.read_text(encoding='utf-8')
+            return content
+            
+        except UnicodeDecodeError:
+            raise HTTPException(status_code=400, detail="File is not a valid UTF-8 text file")
+        except PermissionError:
+            raise HTTPException(status_code=403, detail=f"Permission denied reading {path}")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error reading file: {str(e)}")
+
     return router
