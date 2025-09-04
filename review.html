@@ -275,8 +275,6 @@
     </div>
 
     <script type="module">
-        // Import mock data
-        import mockDiff from './mock-data.js';
         
         // Parse query parameters to determine diff type
         const urlParams = new URLSearchParams(window.location.search);
@@ -554,8 +552,8 @@
                         diffData = await apiClient.getDiff(options);
                     }
                 } catch (error) {
-                    console.warn('API not available, using mock data:', error);
-                    diffData = mockDiff;
+                    console.error('API not available:', error);
+                    throw error;
                 }
                 
                 // Render the diff
@@ -564,9 +562,12 @@
                 
             } catch (error) {
                 console.error('Failed to initialize application:', error);
-                // Fall back to mock data
-                renderDiff(mockDiff);
-                setupSynchronizedScrolling();
+                // Show error message to user
+                const oldContent = document.getElementById('old-content');
+                const newContent = document.getElementById('new-content');
+                const errorMsg = `<div style="padding: 20px; color: #d1242f;">Failed to load diff data: ${error.message}</div>`;
+                oldContent.innerHTML = errorMsg;
+                newContent.innerHTML = errorMsg;
             }
         });
     </script>
