@@ -70,3 +70,12 @@ class CommentRequest(BaseModel):
     side: str
     content: str
     author: str = "User"
+
+
+class FileEditRequest(BaseModel):
+    """Request to edit a file using diff-like format."""
+    filename: str
+    start_line: int  # 1-based line number where the edit starts
+    end_line: int    # 1-based line number where the edit ends (inclusive)
+    expected_content: str  # Expected content of the lines to be replaced
+    new_content: str       # New content to replace the expected content
