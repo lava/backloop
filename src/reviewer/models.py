@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class LineType(str, Enum):
@@ -14,9 +14,12 @@ class LineType(str, Enum):
 class DiffLine(BaseModel):
     """A single line in a diff chunk."""
     type: LineType
-    old_num: Optional[int]
-    new_num: Optional[int] 
+    oldNum: Optional[int] = Field(None, serialization_alias="oldNum", validation_alias="old_num")
+    newNum: Optional[int] = Field(None, serialization_alias="newNum", validation_alias="new_num")
     content: str
+    
+    class Config:
+        populate_by_name = True
 
 
 class DiffChunk(BaseModel):

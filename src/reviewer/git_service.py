@@ -102,8 +102,8 @@ class GitService:
                                 if i < len(lines) - 1 or line:  # Don't add empty last line
                                     diff_lines.append(DiffLine(
                                         type=LineType.ADDITION,
-                                        old_num=None,
-                                        new_num=i + 1,
+                                        oldNum=None,
+                                        newNum=i + 1,
                                         content=line
                                     ))
                             
@@ -237,8 +237,8 @@ class GitService:
                     new_num = current_chunk.get('current_new', current_chunk['new_start'])
                     current_chunk['lines'].append({
                         'type': LineType.CONTEXT,
-                        'old_num': old_num,
-                        'new_num': new_num,
+                        'oldNum': old_num,
+                        'newNum': new_num,
                         'content': line[1:]  # Remove prefix
                     })
                     current_chunk['current_old'] = old_num + 1
@@ -249,8 +249,8 @@ class GitService:
                     old_num = current_chunk.get('current_old', current_chunk['old_start'])
                     current_chunk['lines'].append({
                         'type': LineType.DELETION,
-                        'old_num': old_num,
-                        'new_num': None,
+                        'oldNum': old_num,
+                        'newNum': None,
                         'content': line[1:]  # Remove prefix
                     })
                     current_chunk['current_old'] = old_num + 1
@@ -262,8 +262,8 @@ class GitService:
                     new_num = current_chunk.get('current_new', current_chunk['new_start'])
                     current_chunk['lines'].append({
                         'type': LineType.ADDITION,
-                        'old_num': None,
-                        'new_num': new_num,
+                        'oldNum': None,
+                        'newNum': new_num,
                         'content': line[1:]  # Remove prefix
                     })
                     current_chunk['current_new'] = new_num + 1
