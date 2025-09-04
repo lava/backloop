@@ -651,14 +651,13 @@
         </div>
     </div>
 
-    <script type="module">
-        
-        // Comment functionality - define globally first
+    <script>
+        // Global comment functions - NOT in module scope
         let commentIdCounter = 1;
-        let commentsData = {}; // Store comments by file path and line number
+        let commentsData = {};
         
-        window.showCommentForm = function(filePath, lineNumber, side, lineElement) {
-            console.log('showCommentForm called:', filePath, lineNumber, side, lineElement);
+        function showCommentForm(filePath, lineNumber, side, lineElement) {
+            console.log('Global showCommentForm called:', filePath, lineNumber, side);
             // Check if form already exists for this line
             const existingForm = lineElement.parentElement.querySelector('.comment-form');
             if (existingForm) {
@@ -672,7 +671,7 @@
                 <textarea placeholder="Leave a comment..."></textarea>
                 <div class="comment-form-buttons">
                     <button class="btn btn-secondary" onclick="this.closest('.comment-form').remove()">Cancel</button>
-                    <button class="btn btn-primary" onclick="window.submitComment(this)">Comment</button>
+                    <button class="btn btn-primary" onclick="submitComment(this)">Comment</button>
                 </div>
             `;
 
@@ -684,9 +683,9 @@
             // Insert after the line element
             lineElement.parentElement.insertBefore(commentForm, lineElement.nextSibling);
             commentForm.querySelector('textarea').focus();
-        };
+        }
         
-        window.submitComment = function(buttonElement) {
+        function submitComment(buttonElement) {
             const form = buttonElement.closest('.comment-form');
             const textarea = form.querySelector('textarea');
             const content = textarea.value.trim();
@@ -722,8 +721,14 @@
             form.remove();
             console.log('Comment added:', comment);
             alert('Comment added: ' + content);
-        };
+        }
+        
+        // Make functions available globally
+        window.showCommentForm = showCommentForm;
+        window.submitComment = submitComment;
+    </script>
 
+    <script type="module">
         // Parse query parameters to determine diff type
         const urlParams = new URLSearchParams(window.location.search);
         const commit = urlParams.get('commit');
@@ -1163,11 +1168,8 @@
                     e.preventDefault();
                     e.stopPropagation();
                     console.log('Direct click:', filePath, actualLineNum, side);
-                    if (window.showCommentForm) {
-                        window.showCommentForm(filePath, actualLineNum, side, lineDiv);
-                    } else {
-                        console.error('showCommentForm not available');
-                    }
+                    // Call the global function
+                    showCommentForm(filePath, actualLineNum, side, lineDiv);
                 });
             }
             
@@ -1289,22 +1291,8 @@
                 renderDiff(diffData);
                 setupSynchronizedScrolling();
                 
-                // Add click handlers to all line numbers after rendering
-                setTimeout(() => {
-                    document.querySelectorAll('.clickable-line-number').forEach(lineNumEl => {
-                        lineNumEl.addEventListener('click', (e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            const filePath = lineNumEl.dataset.filePath;
-                            const lineNum = lineNumEl.dataset.lineNum;
-                            const side = lineNumEl.dataset.side;
-                            const lineDiv = lineNumEl.parentElement;
-                            console.log('Line number clicked:', filePath, lineNum, side);
-                            window.showCommentForm(filePath, lineNum, side, lineDiv);
-                        });
-                    });
-                    console.log('Added click handlers to', document.querySelectorAll('.clickable-line-number').length, 'line numbers');
-                }, 100);
+                // Log that rendering is complete
+                console.log('Diff rendered, click handlers attached to line numbers');
                 
             } catch (error) {
                 console.error('Failed to initialize application:', error);
