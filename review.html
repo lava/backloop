@@ -653,6 +653,77 @@
 
     <script type="module">
         
+        // Comment functionality - define globally first
+        let commentIdCounter = 1;
+        let commentsData = {}; // Store comments by file path and line number
+        
+        window.showCommentForm = function(filePath, lineNumber, side, lineElement) {
+            console.log('showCommentForm called:', filePath, lineNumber, side, lineElement);
+            // Check if form already exists for this line
+            const existingForm = lineElement.parentElement.querySelector('.comment-form');
+            if (existingForm) {
+                existingForm.remove();
+                return;
+            }
+
+            const commentForm = document.createElement('div');
+            commentForm.className = 'comment-form';
+            commentForm.innerHTML = `
+                <textarea placeholder="Leave a comment..."></textarea>
+                <div class="comment-form-buttons">
+                    <button class="btn btn-secondary" onclick="this.closest('.comment-form').remove()">Cancel</button>
+                    <button class="btn btn-primary" onclick="window.submitComment(this)">Comment</button>
+                </div>
+            `;
+
+            // Store metadata on the form
+            commentForm.dataset.filePath = filePath;
+            commentForm.dataset.lineNumber = lineNumber;
+            commentForm.dataset.side = side;
+
+            // Insert after the line element
+            lineElement.parentElement.insertBefore(commentForm, lineElement.nextSibling);
+            commentForm.querySelector('textarea').focus();
+        };
+        
+        window.submitComment = function(buttonElement) {
+            const form = buttonElement.closest('.comment-form');
+            const textarea = form.querySelector('textarea');
+            const content = textarea.value.trim();
+
+            if (!content) {
+                alert('Please enter a comment.');
+                return;
+            }
+
+            const filePath = form.dataset.filePath;
+            const lineNumber = parseInt(form.dataset.lineNumber);
+            const side = form.dataset.side;
+
+            // Create comment object
+            const comment = {
+                id: commentIdCounter++,
+                content: content,
+                author: 'Reviewer',
+                timestamp: new Date().toLocaleString(),
+                filePath: filePath,
+                lineNumber: lineNumber,
+                side: side
+            };
+
+            // Store comment
+            const key = `${filePath}:${lineNumber}:${side}`;
+            if (!commentsData[key]) {
+                commentsData[key] = [];
+            }
+            commentsData[key].push(comment);
+
+            // Remove form
+            form.remove();
+            console.log('Comment added:', comment);
+            alert('Comment added: ' + content);
+        };
+
         // Parse query parameters to determine diff type
         const urlParams = new URLSearchParams(window.location.search);
         const commit = urlParams.get('commit');
@@ -1076,7 +1147,8 @@
                 lineNumberDiv.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    showCommentForm(filePath, actualLineNum, side, lineDiv);
+                    console.log('Line clicked:', filePath, actualLineNum, side);
+                    window.showCommentForm(filePath, actualLineNum, side, lineDiv);
                 });
             }
             
@@ -1096,218 +1168,6 @@
             return div.innerHTML;
         }
 
-        // Comment functionality
-        let commentIdCounter = 1;
-        let commentsData = {}; // Store comments by file path and line number
-
-        function showCommentForm(filePath, lineNumber, side, lineElement) {
-            // Check if form already exists for this line
-            const existingForm = lineElement.parentElement.querySelector('.comment-form');
-            if (existingForm) {
-                existingForm.remove();
-                return;
-            }
-
-            const commentForm = document.createElement('div');
-            commentForm.className = 'comment-form';
-            commentForm.innerHTML = `
-                <textarea placeholder="Leave a comment..."></textarea>
-                <div class="comment-form-buttons">
-                    <button class="btn btn-secondary" onclick="this.closest('.comment-form').remove()">Cancel</button>
-                    <button class="btn btn-primary" onclick="submitComment(this)">Comment</button>
-                </div>
-            `;
-
-            // Store metadata on the form
-            commentForm.dataset.filePath = filePath;
-            commentForm.dataset.lineNumber = lineNumber;
-            commentForm.dataset.side = side;
-
-            // Insert after the line element
-            lineElement.parentElement.insertBefore(commentForm, lineElement.nextSibling);
-            commentForm.querySelector('textarea').focus();
-        }
-
-        function submitComment(buttonElement) {
-            const form = buttonElement.closest('.comment-form');
-            const textarea = form.querySelector('textarea');
-            const content = textarea.value.trim();
-
-            if (!content) {
-                alert('Please enter a comment.');
-                return;
-            }
-
-            const filePath = form.dataset.filePath;
-            const lineNumber = parseInt(form.dataset.lineNumber);
-            const side = form.dataset.side;
-
-            // Create comment object
-            const comment = {
-                id: commentIdCounter++,
-                content: content,
-                author: 'Reviewer',
-                timestamp: new Date().toLocaleString(),
-                filePath: filePath,
-                lineNumber: lineNumber,
-                side: side
-            };
-
-            // Store comment
-            const key = `${filePath}:${lineNumber}:${side}`;
-            if (!commentsData[key]) {
-                commentsData[key] = [];
-            }
-            commentsData[key].push(comment);
-
-            // Remove form and show comment thread
-            form.remove();
-            renderCommentThread(filePath, lineNumber, side);
-
-            // Update comment badge
-            updateCommentBadges();
-        }
-
-        function renderCommentThread(filePath, lineNumber, side) {
-            const key = `${filePath}:${lineNumber}:${side}`;
-            const comments = commentsData[key] || [];
-            
-            if (comments.length === 0) return;
-
-            // Find the line element
-            const paneId = side === 'old' ? 'old-pane' : 'new-pane';
-            const pane = document.getElementById(paneId);
-            const lineElements = pane.querySelectorAll('.diff-line');
-            
-            let targetLineElement = null;
-            lineElements.forEach(lineEl => {
-                const lineNumEl = lineEl.querySelector('.line-number');
-                if (lineNumEl) {
-                    const oldLineNum = lineNumEl.querySelector('.old-line-num')?.textContent.trim();
-                    const newLineNum = lineNumEl.querySelector('.new-line-num')?.textContent.trim();
-                    const currentLineNum = side === 'old' ? oldLineNum : newLineNum;
-                    
-                    if (currentLineNum === lineNumber.toString()) {
-                        targetLineElement = lineEl;
-                    }
-                }
-            });
-
-            if (!targetLineElement) return;
-
-            // Remove existing thread
-            const existingThread = targetLineElement.parentElement.querySelector('.comment-thread');
-            if (existingThread) {
-                existingThread.remove();
-            }
-
-            // Create comment thread
-            const commentThread = document.createElement('div');
-            commentThread.className = 'comment-thread';
-            
-            comments.forEach((comment, index) => {
-                const commentDiv = document.createElement('div');
-                commentDiv.className = 'comment';
-                commentDiv.innerHTML = `
-                    <div class="comment-header">
-                        <span class="comment-author">${escapeHtml(comment.author)}</span>
-                        <span class="comment-timestamp">${comment.timestamp}</span>
-                    </div>
-                    <div class="comment-body">${escapeHtml(comment.content)}</div>
-                    <div class="comment-actions">
-                        <a href="#" class="comment-action" onclick="editComment(${comment.id})">Edit</a>
-                        <a href="#" class="comment-action" onclick="deleteComment(${comment.id})">Delete</a>
-                    </div>
-                `;
-                commentThread.appendChild(commentDiv);
-            });
-
-            // Add collapse/expand toggle if multiple comments
-            if (comments.length > 1) {
-                const toggle = document.createElement('div');
-                toggle.className = 'comment-toggle';
-                toggle.innerHTML = `▲ Hide ${comments.length - 1} older comments`;
-                toggle.addEventListener('click', () => {
-                    const isCollapsed = commentThread.classList.contains('collapsed');
-                    if (isCollapsed) {
-                        commentThread.classList.remove('collapsed');
-                        toggle.innerHTML = `▲ Hide ${comments.length - 1} older comments`;
-                    } else {
-                        commentThread.classList.add('collapsed');
-                        toggle.innerHTML = `▼ Show ${comments.length - 1} older comments`;
-                    }
-                });
-                commentThread.appendChild(toggle);
-            }
-
-            // Insert after the line element
-            targetLineElement.parentElement.insertBefore(commentThread, targetLineElement.nextSibling);
-        }
-
-        function updateCommentBadges() {
-            // Remove all existing badges
-            document.querySelectorAll('.comment-badge').forEach(badge => badge.remove());
-
-            // Add badges for lines with comments
-            Object.keys(commentsData).forEach(key => {
-                const [filePath, lineNumber, side] = key.split(':');
-                const comments = commentsData[key];
-                if (comments.length === 0) return;
-
-                const paneId = side === 'old' ? 'old-pane' : 'new-pane';
-                const pane = document.getElementById(paneId);
-                const lineElements = pane.querySelectorAll('.diff-line');
-                
-                lineElements.forEach(lineEl => {
-                    const lineNumEl = lineEl.querySelector('.line-number');
-                    if (lineNumEl) {
-                        const oldLineNum = lineNumEl.querySelector('.old-line-num')?.textContent.trim();
-                        const newLineNum = lineNumEl.querySelector('.new-line-num')?.textContent.trim();
-                        const currentLineNum = side === 'old' ? oldLineNum : newLineNum;
-                        
-                        if (currentLineNum === lineNumber) {
-                            const badge = document.createElement('div');
-                            badge.className = 'comment-badge';
-                            badge.textContent = comments.length;
-                            lineNumEl.appendChild(badge);
-                        }
-                    }
-                });
-            });
-        }
-
-        function editComment(commentId) {
-            // Find comment and replace with edit form
-            console.log('Edit comment', commentId);
-        }
-
-        function deleteComment(commentId) {
-            if (!confirm('Are you sure you want to delete this comment?')) {
-                return;
-            }
-
-            // Find and remove comment from data
-            Object.keys(commentsData).forEach(key => {
-                commentsData[key] = commentsData[key].filter(comment => comment.id !== commentId);
-                if (commentsData[key].length === 0) {
-                    delete commentsData[key];
-                }
-            });
-
-            // Re-render affected comment threads
-            Object.keys(commentsData).forEach(key => {
-                const [filePath, lineNumber, side] = key.split(':');
-                renderCommentThread(filePath, parseInt(lineNumber), side);
-            });
-
-            // Update badges
-            updateCommentBadges();
-        }
-
-        // Make functions globally available
-        window.submitComment = submitComment;
-        window.editComment = editComment;
-        window.deleteComment = deleteComment;
 
         // Synchronized scrolling
         function setupSynchronizedScrolling() {
