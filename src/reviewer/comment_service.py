@@ -2,7 +2,7 @@ import json
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 
 from reviewer.models import Comment, CommentRequest
 
@@ -14,10 +14,16 @@ class CommentService:
         """Initialize with optional storage path."""
         self.storage_path = Path(storage_path) if storage_path else Path.cwd() / ".reviewer_comments.json"
         self._comments: Dict[str, Comment] = self._load_comments()
+        self._comment_queue: List[str] = []  # List of comment IDs in queue order
     
-    def add_comment(self, request: CommentRequest) -> Comment:
-        """Add a new comment."""
+    def add_comment(self, request: CommentRequest) -> Tuple[Comment, int]:
+        """Add a new comment and return it with its queue position."""
         comment_id = str(uuid.uuid4())
+        
+        # Add to queue and get position (1-indexed for user display)
+        self._comment_queue.append(comment_id)
+        queue_position = len(self._comment_queue)
+        
         comment = Comment(
             id=comment_id,
             file_path=request.file_path,
@@ -25,12 +31,13 @@ class CommentService:
             side=request.side,
             content=request.content,
             author=request.author,
-            timestamp=datetime.now().isoformat()
+            timestamp=datetime.now().isoformat(),
+            queue_position=queue_position
         )
         
         self._comments[comment_id] = comment
         self._save_comments()
-        return comment
+        return comment, queue_position
     
     def get_comments(self, file_path: Optional[str] = None) -> List[Comment]:
         """Get all comments, optionally filtered by file path."""
@@ -56,9 +63,23 @@ class CommentService:
         """Delete a comment."""
         if comment_id in self._comments:
             del self._comments[comment_id]
+            # Remove from queue if present
+            if comment_id in self._comment_queue:
+                self._comment_queue.remove(comment_id)
             self._save_comments()
             return True
         return False
+    
+    def get_queue_status(self) -> Dict[str, int]:
+        """Get the current queue status with comment IDs and their positions."""
+        return {
+            comment_id: position + 1 
+            for position, comment_id in enumerate(self._comment_queue)
+        }
+    
+    def get_queue_length(self) -> int:
+        """Get the current length of the comment queue."""
+        return len(self._comment_queue)
     
     def _load_comments(self) -> Dict[str, Comment]:
         """Load comments from storage."""

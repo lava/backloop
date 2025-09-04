@@ -685,7 +685,7 @@
             commentForm.querySelector('textarea').focus();
         }
         
-        function submitComment(buttonElement) {
+        async function submitComment(buttonElement) {
             const form = buttonElement.closest('.comment-form');
             const textarea = form.querySelector('textarea');
             const content = textarea.value.trim();
@@ -699,28 +699,94 @@
             const lineNumber = parseInt(form.dataset.lineNumber);
             const side = form.dataset.side;
 
-            // Create comment object
-            const comment = {
-                id: commentIdCounter++,
-                content: content,
-                author: 'Reviewer',
-                timestamp: new Date().toLocaleString(),
-                filePath: filePath,
-                lineNumber: lineNumber,
-                side: side
-            };
-
-            // Store comment
-            const key = `${filePath}:${lineNumber}:${side}`;
-            if (!commentsData[key]) {
-                commentsData[key] = [];
+            // Get review ID from URL
+            const pathParts = window.location.pathname.split('/');
+            const reviewId = pathParts[2]; // /review/{review_id}/view
+            
+            try {
+                // Make API call to add comment
+                const response = await fetch(`/review/${reviewId}/api/comments`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        file_path: filePath,
+                        line_number: lineNumber,
+                        side: side,
+                        content: content,
+                        author: 'Reviewer'
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to add comment');
+                }
+                
+                const result = await response.json();
+                const comment = result.comment;
+                const queuePosition = result.queue_position;
+                
+                // Add queue position to comment for display
+                comment.queuePosition = queuePosition;
+                
+                // Store comment locally
+                const key = `${filePath}:${lineNumber}:${side}`;
+                if (!commentsData[key]) {
+                    commentsData[key] = [];
+                }
+                commentsData[key].push(comment);
+                
+                // Remove form and display comment with queue position
+                form.remove();
+                displayCommentWithQueue(comment, lineNumber, side, form.parentElement);
+                
+                console.log(`Comment added at queue position ${queuePosition}:`, comment);
+            } catch (error) {
+                console.error('Error adding comment:', error);
+                // Fall back to local storage
+                const comment = {
+                    id: commentIdCounter++,
+                    content: content,
+                    author: 'Reviewer',
+                    timestamp: new Date().toLocaleString(),
+                    filePath: filePath,
+                    lineNumber: lineNumber,
+                    side: side,
+                    queuePosition: commentIdCounter // Use local counter as queue position
+                };
+                
+                const key = `${filePath}:${lineNumber}:${side}`;
+                if (!commentsData[key]) {
+                    commentsData[key] = [];
+                }
+                commentsData[key].push(comment);
+                
+                form.remove();
+                displayCommentWithQueue(comment, lineNumber, side, form.parentElement);
             }
-            commentsData[key].push(comment);
-
-            // Remove form
-            form.remove();
-            console.log('Comment added:', comment);
-            alert('Comment added: ' + content);
+        }
+        
+        function displayCommentWithQueue(comment, lineNumber, side, parentElement) {
+            // Create comment display element
+            const commentDiv = document.createElement('div');
+            commentDiv.className = 'comment-thread';
+            commentDiv.innerHTML = `
+                <div class="comment">
+                    <div class="comment-header">
+                        <span class="comment-author">${comment.author}</span>
+                        <span class="comment-timestamp">${comment.timestamp}</span>
+                        ${comment.queuePosition ? `
+                        <span style="margin-left: auto; background: #0969da; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">
+                            Queue #${comment.queuePosition}
+                        </span>` : ''}
+                    </div>
+                    <div class="comment-body">${comment.content}</div>
+                </div>
+            `;
+            
+            // Insert the comment display
+            parentElement.appendChild(commentDiv);
         }
         
         // Make functions available globally

@@ -60,6 +60,7 @@ class Comment(BaseModel):
     content: str
     author: str = "User"
     timestamp: str
+    queue_position: Optional[int] = None
 
 
 class CommentRequest(BaseModel):

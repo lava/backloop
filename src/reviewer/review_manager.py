@@ -132,12 +132,16 @@ class ReviewManager:
             return review_session.comment_service.get_comments(file_path=file_path)
         
         @router.post("/review/{review_id}/api/comments")
-        async def create_review_comment(request: CommentRequest, review_id: str = Path(...)) -> Comment:
-            """Create a comment for a specific review session."""
+        async def create_review_comment(request: CommentRequest, review_id: str = Path(...)) -> dict:
+            """Create a comment for a specific review session and return it with queue position."""
             review_session = self.get_review_session(review_id)
             if not review_session:
                 raise HTTPException(status_code=404, detail="Review not found")
-            return review_session.comment_service.add_comment(request)
+            comment, queue_position = review_session.comment_service.add_comment(request)
+            return {
+                "comment": comment.model_dump(),
+                "queue_position": queue_position
+            }
         
         @router.get("/review/{review_id}/api/comments/{comment_id}")
         async def get_review_comment(review_id: str = Path(...), comment_id: str = Path(...)) -> Comment:
