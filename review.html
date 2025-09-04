@@ -695,6 +695,7 @@
             commentForm.dataset.filePath = filePath;
             commentForm.dataset.lineNumber = lineNumber;
             commentForm.dataset.side = side;
+            commentForm.dataset.lineElementId = lineElement.id;
 
             // Insert after the line element
             lineElement.parentElement.insertBefore(commentForm, lineElement.nextSibling);
@@ -753,8 +754,9 @@
                 }
                 commentsData[key].push(comment);
                 
-                // Find the line element to insert comment after
-                const lineElement = findLineElement(filePath, lineNumber, side);
+                // Get line element by stored ID
+                const lineElementId = form.dataset.lineElementId;
+                const lineElement = document.getElementById(lineElementId);
                 
                 // Remove form and display comment with queue position
                 form.remove();
@@ -781,46 +783,13 @@
                 }
                 commentsData[key].push(comment);
                 
-                // Find the line element to insert comment after
-                const lineElement = findLineElement(filePath, lineNumber, side);
+                // Get line element by stored ID
+                const lineElementId = form.dataset.lineElementId;
+                const lineElement = document.getElementById(lineElementId);
                 
                 form.remove();
                 displayCommentWithQueue(comment, lineNumber, side, lineElement);
             }
-        }
-        
-        function findLineElement(filePath, lineNumber, side) {
-            // Find the file section first
-            const fileSections = document.querySelectorAll('.file-section');
-            let targetFileSection = null;
-            
-            for (const section of fileSections) {
-                const filePathElement = section.querySelector('.file-path');
-                if (filePathElement && filePathElement.textContent === filePath) {
-                    targetFileSection = section;
-                    break;
-                }
-            }
-            
-            if (!targetFileSection) {
-                console.error('Could not find file section for:', filePath);
-                return null;
-            }
-            
-            // Find the specific line within that file section
-            const diffLines = targetFileSection.querySelectorAll('.diff-line');
-            for (const line of diffLines) {
-                const lineNumberElement = side === 'old' ? 
-                    line.querySelector('.old-line-num') : 
-                    line.querySelector('.new-line-num');
-                    
-                if (lineNumberElement && parseInt(lineNumberElement.textContent) === lineNumber) {
-                    return line;
-                }
-            }
-            
-            console.error('Could not find line element for:', filePath, lineNumber, side);
-            return targetFileSection; // Fallback to file section
         }
         
         function displayCommentWithQueue(comment, lineNumber, side, lineElement) {
@@ -835,9 +804,11 @@
             const commentDiv = document.createElement('div');
             commentDiv.className = 'comment-thread';
             commentDiv.dataset.commentId = comment.id;
-            commentDiv.style.marginLeft = '0';
-            commentDiv.style.marginRight = '0';
-            commentDiv.style.width = '100%';
+            commentDiv.style.margin = '8px';
+            commentDiv.style.maxWidth = 'calc(100% - 16px)';
+            commentDiv.style.backgroundColor = '#f6f8fa';
+            commentDiv.style.border = '1px solid #d0d7de';
+            commentDiv.style.borderRadius = '6px';
             
             // Escape HTML content to prevent issues
             const escapeHtml = (text) => {
@@ -1334,6 +1305,13 @@
         function createLineElement(line, side, filePath) {
             const lineDiv = document.createElement('div');
             lineDiv.className = 'diff-line';
+            
+            // Create unique ID for this line element
+            const lineNumber = side === 'old' ? line.oldNum : line.newNum;
+            if (lineNumber) {
+                const sanitizedPath = filePath.replace(/[^a-zA-Z0-9]/g, '-');
+                lineDiv.id = `line-${sanitizedPath}-${side}-${lineNumber}`;
+            }
             
             // Determine what to show based on side and line type
             let shouldShow = true;
