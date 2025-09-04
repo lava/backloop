@@ -3,15 +3,21 @@ import threading
 import time
 import socket
 from typing import Dict, Optional, List
+from datetime import datetime
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from reviewer.models import Comment, CommentRequest, GitDiff
 from reviewer.review_session import ReviewSession  
 from fastapi import HTTPException, Path, APIRouter
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from pathlib import Path as PathLib
+
+# Request models
+class ApprovalRequest(BaseModel):
+    timestamp: str
 
 
 class ReviewManager:
@@ -51,12 +57,26 @@ class ReviewManager:
         """Get a review session by ID."""
         return self.active_reviews.get(review_id)
     
+    def get_most_recent_review(self) -> Optional[ReviewSession]:
+        """Get the most recently created review session."""
+        if not self.active_reviews:
+            return None
+        return max(self.active_reviews.values(), key=lambda r: r.created_at)
+    
     def create_dynamic_router(self) -> APIRouter:
         """Create a dynamic router that handles all review paths."""
         router = APIRouter()
         
         # Get the project root directory
         BASE_DIR = PathLib(__file__).parent.parent.parent
+        
+        @router.get("/")
+        async def redirect_to_latest_review() -> RedirectResponse:
+            """Redirect to the most recent review."""
+            recent_review = self.get_most_recent_review()
+            if not recent_review:
+                raise HTTPException(status_code=404, detail="No active reviews found")
+            return RedirectResponse(url=f"/review/{recent_review.id}")
         
         @router.get("/mock")
         async def get_mock_page() -> FileResponse:
@@ -74,19 +94,27 @@ class ReviewManager:
                 raise HTTPException(status_code=404, detail="mock-data.js not found")
             return FileResponse(mock_data_path, media_type="application/javascript")
         
-        @router.get("/reviews/{review_id}")
-        async def get_review_index(review_id: str = Path(...)) -> FileResponse:
-            """Serve the main index.html file for a specific review."""
+        @router.get("/review/{review_id}")
+        async def redirect_to_review_view(review_id: str = Path(...)) -> RedirectResponse:
+            """Redirect to the review view with proper parameters."""
+            review_session = self.get_review_session(review_id)
+            if not review_session:
+                raise HTTPException(status_code=404, detail="Review not found")
+            return RedirectResponse(url=f"/review/{review_id}/view?{review_session.view_params}")
+        
+        @router.get("/review/{review_id}/view")
+        async def get_review_view(review_id: str = Path(...)) -> FileResponse:
+            """Serve the review.html file for a specific review."""
             review_session = self.get_review_session(review_id)
             if not review_session:
                 raise HTTPException(status_code=404, detail="Review not found")
             
-            index_path = BASE_DIR / "index.html"
-            if not index_path.exists():
-                raise HTTPException(status_code=404, detail="index.html not found")
-            return FileResponse(index_path)
+            review_path = BASE_DIR / "review.html"
+            if not review_path.exists():
+                raise HTTPException(status_code=404, detail="review.html not found")
+            return FileResponse(review_path)
         
-        @router.get("/reviews/{review_id}/api/diff")
+        @router.get("/review/{review_id}/api/diff")
         async def get_review_diff(review_id: str = Path(...)) -> GitDiff:
             """Get diff data for a specific review session."""
             review_session = self.get_review_session(review_id)
@@ -94,7 +122,7 @@ class ReviewManager:
                 raise HTTPException(status_code=404, detail="Review not found")
             return review_session.diff
         
-        @router.get("/reviews/{review_id}/api/comments")
+        @router.get("/review/{review_id}/api/comments")
         async def get_review_comments(review_id: str = Path(...), file_path: Optional[str] = None) -> List[Comment]:
             """Get comments for a specific review session."""
             review_session = self.get_review_session(review_id)
@@ -102,7 +130,7 @@ class ReviewManager:
                 raise HTTPException(status_code=404, detail="Review not found")
             return review_session.comment_service.get_comments(file_path=file_path)
         
-        @router.post("/reviews/{review_id}/api/comments")
+        @router.post("/review/{review_id}/api/comments")
         async def create_review_comment(request: CommentRequest, review_id: str = Path(...)) -> Comment:
             """Create a comment for a specific review session."""
             review_session = self.get_review_session(review_id)
@@ -110,7 +138,7 @@ class ReviewManager:
                 raise HTTPException(status_code=404, detail="Review not found")
             return review_session.comment_service.add_comment(request)
         
-        @router.get("/reviews/{review_id}/api/comments/{comment_id}")
+        @router.get("/review/{review_id}/api/comments/{comment_id}")
         async def get_review_comment(review_id: str = Path(...), comment_id: str = Path(...)) -> Comment:
             """Get a specific comment for a review session."""
             review_session = self.get_review_session(review_id)
@@ -121,7 +149,7 @@ class ReviewManager:
                 raise HTTPException(status_code=404, detail="Comment not found")
             return comment
         
-        @router.put("/reviews/{review_id}/api/comments/{comment_id}")
+        @router.put("/review/{review_id}/api/comments/{comment_id}")
         async def update_review_comment(content: str, review_id: str = Path(...), comment_id: str = Path(...)) -> Comment:
             """Update a comment for a review session."""
             review_session = self.get_review_session(review_id)
@@ -132,7 +160,7 @@ class ReviewManager:
                 raise HTTPException(status_code=404, detail="Comment not found")
             return comment
         
-        @router.delete("/reviews/{review_id}/api/comments/{comment_id}")
+        @router.delete("/review/{review_id}/api/comments/{comment_id}")
         async def delete_review_comment(review_id: str = Path(...), comment_id: str = Path(...)) -> dict:
             """Delete a comment from a review session."""
             review_session = self.get_review_session(review_id)
@@ -142,6 +170,33 @@ class ReviewManager:
             if not success:
                 raise HTTPException(status_code=404, detail="Comment not found")
             return {"message": "Comment deleted successfully"}
+        
+        @router.post("/review/{review_id}/api/approve")
+        async def approve_review(request: ApprovalRequest, review_id: str = Path(...)) -> dict:
+            """Approve the current review."""
+            review_session = self.get_review_session(review_id)
+            if not review_session:
+                raise HTTPException(status_code=404, detail="Review not found")
+            
+            try:
+                # Log the approval
+                approval_time = datetime.fromisoformat(request.timestamp.replace('Z', '+00:00'))
+                
+                # In a real implementation, you might want to:
+                # - Store the approval in a database
+                # - Send notifications
+                # - Update review status
+                # - Integrate with external systems
+                
+                print(f"Review {review_id} approved at {approval_time}")
+                
+                return {
+                    "status": "approved",
+                    "timestamp": request.timestamp,
+                    "message": f"Review {review_id} has been approved successfully"
+                }
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to approve review: {str(e)}")
         
         return router
     

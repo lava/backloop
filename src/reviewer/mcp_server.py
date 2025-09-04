@@ -36,14 +36,9 @@ def startreview(
     
     # Start web server if not already running and get URL
     port = review_manager.start_web_server()
-    review_url = f"http://127.0.0.1:{port}/reviews/{review_session.id}"
+    review_url = f"http://127.0.0.1:{port}/review/{review_session.id}"
     
-    return f"""Review session started successfully!
-
-Review ID: {review_session.id}
-Review URL: {review_url}
-
-Instructions: Open the above URL in your browser to view and comment on the diff.
+    return f"""Review session started at {review_url}
 
 Next step: Call the 'await_comments' tool to wait for review comments from the user."""
 

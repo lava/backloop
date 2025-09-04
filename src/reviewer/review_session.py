@@ -27,12 +27,31 @@ class ReviewSession:
         self.since = since
         self.created_at = time.time()
         
+        # Store parameters for view redirect
+        self.is_live = since is not None or (commit is None and range is None)
+        self.view_params = self._build_view_params()
+        
         # Create isolated services for this review session
         self.git_service = GitService()
         self.comment_service = CommentService(storage_path=f".reviewer_comments_{self.id}.json")
         
         # Get the diff data for this review
         self.diff = self._get_diff()
+    
+    def _build_view_params(self) -> str:
+        """Build query parameters for the view redirect."""
+        params = []
+        
+        if self.commit:
+            params.append(f"commit={self.commit}")
+        elif self.range:
+            params.append(f"range={self.range}")
+        else:
+            # Default to live mode
+            since_param = self.since or "HEAD"
+            params.append(f"live=true&since={since_param}")
+            
+        return "&".join(params)
     
     def _get_diff(self) -> GitDiff:
         """Get the diff data based on the session parameters."""
