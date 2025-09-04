@@ -315,7 +315,11 @@
             }
             
             async approve() {
-                const response = await fetch(`${this.baseUrl}/api/approve`, {
+                // Extract review ID from current URL
+                const pathParts = window.location.pathname.split('/review/');
+                const reviewId = pathParts.length > 1 ? pathParts[1].split('/')[0] : 'default';
+                
+                const response = await fetch(`/review/${reviewId}/approve`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -332,10 +336,8 @@
             }
         }
         
-        // Initialize API client with correct base URL for review context
-        const pathParts = window.location.pathname.split('/review/');
-        const reviewId = pathParts.length > 1 ? pathParts[1].split('/')[0] : null;
-        const apiClient = new ApiClient(reviewId ? `/review/${reviewId}` : '');
+        // Initialize API client with root base URL
+        const apiClient = new ApiClient('');
 
         // Render diff content
         function renderDiff(diff) {

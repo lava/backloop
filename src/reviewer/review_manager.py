@@ -14,6 +14,7 @@ from reviewer.review_session import ReviewSession
 from fastapi import HTTPException, Path, APIRouter
 from fastapi.responses import FileResponse, RedirectResponse
 from pathlib import Path as PathLib
+from reviewer.api_router import create_api_router
 
 # Request models
 class ApprovalRequest(BaseModel):
@@ -171,7 +172,7 @@ class ReviewManager:
                 raise HTTPException(status_code=404, detail="Comment not found")
             return {"message": "Comment deleted successfully"}
         
-        @router.post("/review/{review_id}/api/approve")
+        @router.post("/review/{review_id}/approve")
         async def approve_review(request: ApprovalRequest, review_id: str = Path(...)) -> dict:
             """Approve the current review."""
             review_session = self.get_review_session(review_id)
@@ -229,6 +230,10 @@ class ReviewManager:
             allow_methods=["*"],
             allow_headers=["*"],
         )
+        
+        # Include the shared API router
+        api_router = create_api_router()
+        self._main_app.include_router(api_router)
         
         # Include the dynamic router that handles all review paths
         dynamic_router = self.create_dynamic_router()
