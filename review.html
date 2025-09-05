@@ -721,9 +721,11 @@
             line-height: 16px;
             padding: 12px 8px;
             color: #656d76;
-            overflow: hidden;
+            overflow-y: auto;
+            overflow-x: hidden;
             text-align: right;
             user-select: none;
+            white-space: pre;
         }
 
         .edit-textarea {
@@ -1575,9 +1577,9 @@
                 fileStats = `<span class="file-stats"><span class="additions">+${file.additions}</span> <span class="deletions">-${file.deletions}</span></span>`;
             }
             
-            // Add edit button for live mode
+            // Add edit button for live mode - only on the right/new side
             let editButton = '';
-            if (live) {
+            if (live && side === 'new') {
                 editButton = `<button class="edit-button" onclick="openFileEditor('${file.path.replace(/'/g, "\\'")}')">Edit</button>`;
             }
             
