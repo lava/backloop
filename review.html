@@ -1593,15 +1593,45 @@
                 ${fileStats}
             `;
             
-            // Add collapse functionality
-            header.addEventListener('click', () => {
-                const isCollapsed = header.getAttribute('data-collapsed') === 'true';
-                header.setAttribute('data-collapsed', (!isCollapsed).toString());
+            // Add synchronized collapse functionality
+            header.addEventListener('click', (e) => {
+                // Don't collapse if clicking on the edit button
+                if (e.target.classList.contains('edit-button')) {
+                    return;
+                }
                 
-                if (isCollapsed) {
-                    section.classList.remove('collapsed');
-                } else {
+                const isCollapsed = header.getAttribute('data-collapsed') === 'true';
+                const newCollapsedState = !isCollapsed;
+                
+                // Find corresponding file section in the opposite pane
+                const oppositePaneId = side === 'old' ? 'new-pane' : 'old-pane';
+                const oppositePane = document.getElementById(oppositePaneId);
+                const oppositeSections = oppositePane.querySelectorAll('.file-section');
+                
+                // Find the section with the same file path
+                for (const oppositeSection of oppositeSections) {
+                    const oppositeFilePathEl = oppositeSection.querySelector('.file-path');
+                    if (oppositeFilePathEl && oppositeFilePathEl.textContent === file.path) {
+                        const oppositeHeader = oppositeSection.querySelector('.file-header');
+                        if (oppositeHeader) {
+                            // Synchronize the collapsed state
+                            oppositeHeader.setAttribute('data-collapsed', newCollapsedState.toString());
+                            if (newCollapsedState) {
+                                oppositeSection.classList.add('collapsed');
+                            } else {
+                                oppositeSection.classList.remove('collapsed');
+                            }
+                        }
+                        break;
+                    }
+                }
+                
+                // Update this section's state
+                header.setAttribute('data-collapsed', newCollapsedState.toString());
+                if (newCollapsedState) {
                     section.classList.add('collapsed');
+                } else {
+                    section.classList.remove('collapsed');
                 }
             });
             
