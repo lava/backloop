@@ -1535,10 +1535,12 @@
 
         function createFileSection(file, side) {
             const section = document.createElement('div');
-            section.className = 'file-section';
+            // Add a shared unique class for this file that's the same on both sides
+            const fileId = 'file-' + file.path.replace(/[^a-zA-Z0-9]/g, '-');
+            section.className = `file-section ${fileId}`;
             
             // Create a unique anchor ID for this file in this pane
-            const anchorId = 'file-' + file.path.replace(/[^a-zA-Z0-9]/g, '-');
+            const anchorId = fileId;
             const paneId = side === 'old' ? 'old-pane' : 'new-pane';
             
             // Add an anchor element at the top of the section
@@ -1603,36 +1605,22 @@
                 const isCollapsed = header.getAttribute('data-collapsed') === 'true';
                 const newCollapsedState = !isCollapsed;
                 
-                // Find corresponding file section in the opposite pane
-                const oppositePaneId = side === 'old' ? 'new-pane' : 'old-pane';
-                const oppositePane = document.getElementById(oppositePaneId);
-                const oppositeSections = oppositePane.querySelectorAll('.file-section');
+                // Find all file sections with the same fileId (both old and new sides)
+                const matchingSections = document.querySelectorAll(`.${fileId}`);
                 
-                // Find the section with the same file path
-                for (const oppositeSection of oppositeSections) {
-                    const oppositeFilePathEl = oppositeSection.querySelector('.file-path');
-                    if (oppositeFilePathEl && oppositeFilePathEl.textContent === file.path) {
-                        const oppositeHeader = oppositeSection.querySelector('.file-header');
-                        if (oppositeHeader) {
-                            // Synchronize the collapsed state
-                            oppositeHeader.setAttribute('data-collapsed', newCollapsedState.toString());
-                            if (newCollapsedState) {
-                                oppositeSection.classList.add('collapsed');
-                            } else {
-                                oppositeSection.classList.remove('collapsed');
-                            }
-                        }
-                        break;
+                // Update collapsed state for all matching sections
+                matchingSections.forEach(matchingSection => {
+                    const matchingHeader = matchingSection.querySelector('.file-header');
+                    if (matchingHeader) {
+                        matchingHeader.setAttribute('data-collapsed', newCollapsedState.toString());
                     }
-                }
-                
-                // Update this section's state
-                header.setAttribute('data-collapsed', newCollapsedState.toString());
-                if (newCollapsedState) {
-                    section.classList.add('collapsed');
-                } else {
-                    section.classList.remove('collapsed');
-                }
+                    
+                    if (newCollapsedState) {
+                        matchingSection.classList.add('collapsed');
+                    } else {
+                        matchingSection.classList.remove('collapsed');
+                    }
+                });
             });
             
             section.appendChild(header);
