@@ -1,6 +1,7 @@
 from typing import Optional
 from pathlib import Path
 from fastapi import APIRouter, Query, HTTPException
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 from reviewer.models import GitDiff, FileEditRequest
@@ -115,7 +116,7 @@ def create_api_router() -> APIRouter:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error editing file: {str(e)}")
 
-    @router.get("/api/file-content")
+    @router.get("/api/file-content", response_class=PlainTextResponse)
     async def get_file_content(path: str) -> str:
         """Get the content of a file."""
         try:
