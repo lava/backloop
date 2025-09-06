@@ -17,10 +17,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from reviewer.review_manager import ReviewManager
 from reviewer.models import Comment, ReviewApproved
+from reviewer.settings import settings
 
 
-async def main():
+async def main() -> None:
     """Main test function."""
+    if settings.debug:
+        print("[DEBUG] Running in debug mode")
+        print(f"[DEBUG] Debug setting: {settings.debug}")
+    
     # Initialize review manager
     review_manager = ReviewManager()
     
@@ -41,7 +46,13 @@ async def main():
     
     # Keep waiting for comments until review is approved
     while True:
+        if settings.debug:
+            print("[DEBUG] Calling await_comments...")
+        
         result = await review_manager.await_comments()
+        
+        if settings.debug:
+            print(f"[DEBUG] await_comments returned: {type(result).__name__}")
         
         if isinstance(result, ReviewApproved):
             print("\n🎉 REVIEW APPROVED!")
@@ -63,6 +74,9 @@ async def main():
 
 
 if __name__ == "__main__":
+    if settings.debug:
+        print(f"[DEBUG] Starting test script with BACKLOOP_CI_DEBUG={settings.debug}")
+    
     try:
         asyncio.run(main())
     except KeyboardInterrupt:

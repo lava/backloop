@@ -10,7 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from reviewer.models import Comment, CommentRequest, GitDiff, ReviewApproved
-from reviewer.review_session import ReviewSession  
+from reviewer.review_session import ReviewSession
+from reviewer.settings import settings  
 from fastapi import HTTPException, Path, APIRouter
 from fastapi.responses import FileResponse, RedirectResponse
 from pathlib import Path as PathLib
@@ -201,6 +202,8 @@ class ReviewManager:
                 print(f"Review {review_id} approved at {approval_time}")
                 
                 # Mark review as approved and trigger event for waiting MCP tools
+                if settings.debug:
+                    print(f"[DEBUG] Marking review {review_id} as approved")
                 self._review_approved[review_id] = True
                 self._comment_event.set()  # Wake up any waiting await_comments
                 
@@ -275,6 +278,9 @@ class ReviewManager:
     
     def add_comment_to_queue(self, comment: Comment) -> None:
         """Add a comment to the pending queue and notify waiters."""
+        if settings.debug:
+            print(f"[DEBUG] Adding comment to queue: {comment.file_path}:{comment.line_number} - {comment.content[:50]}...")
+            print(f"[DEBUG] Queue length after adding: {len(self._pending_comments) + 1}")
         self._pending_comments.append(comment)
         self._comment_event.set()
     
@@ -285,21 +291,34 @@ class ReviewManager:
         - Comment if a comment is available
         - ReviewApproved if review is approved and no comments pending
         """
+        if settings.debug:
+            print("[DEBUG] await_comments called, entering wait loop")
+        
         while True:
             # Check if there are pending comments
             if self._pending_comments:
-                # Return the next comment (FIFO)
-                return self._pending_comments.pop(0)
+                comment = self._pending_comments.pop(0)
+                if settings.debug:
+                    print(f"[DEBUG] Returning comment from queue: {comment.file_path}:{comment.line_number}")
+                    print(f"[DEBUG] Remaining comments in queue: {len(self._pending_comments)}")
+                return comment
             
             # Check if the most recent review is approved
             recent_review = self.get_most_recent_review()
             if recent_review and self._review_approved.get(recent_review.id, False):
-                # Review is approved and no pending comments
+                if settings.debug:
+                    print(f"[DEBUG] Review {recent_review.id} is approved, returning ReviewApproved")
                 return ReviewApproved(
                     review_id=recent_review.id,
                     timestamp=datetime.now().isoformat()
                 )
             
+            if settings.debug:
+                print(f"[DEBUG] No comments in queue, waiting for event...")
+            
             # Wait for new comments or approval
             self._comment_event.clear()
             await self._comment_event.wait()
+            
+            if settings.debug:
+                print("[DEBUG] Event triggered, checking for comments/approval")
