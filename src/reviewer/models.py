@@ -76,3 +76,9 @@ class FileEditRequest(BaseModel):
     """Request to edit a file using unified diff patch format."""
     filename: str
     patch: str  # Unified diff patch to apply to the file
+
+
+class ReviewApproved(BaseModel):
+    """Indicates that a review has been approved."""
+    review_id: str
+    timestamp: str

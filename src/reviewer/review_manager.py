@@ -2,14 +2,14 @@ import asyncio
 import threading
 import time
 import socket
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Union
 from datetime import datetime
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from reviewer.models import Comment, CommentRequest, GitDiff
+from reviewer.models import Comment, CommentRequest, GitDiff, ReviewApproved
 from reviewer.review_session import ReviewSession  
 from fastapi import HTTPException, Path, APIRouter
 from fastapi.responses import FileResponse, RedirectResponse
@@ -32,6 +32,7 @@ class ReviewManager:
         self._web_server_thread: Optional[threading.Thread] = None
         self._pending_comments: List[Comment] = []
         self._comment_event = asyncio.Event()
+        self._review_approved: Dict[str, bool] = {}  # Track approval status per review
     
     def get_free_port(self) -> int:
         """Get a free port number."""
@@ -138,6 +139,10 @@ class ReviewManager:
             if not review_session:
                 raise HTTPException(status_code=404, detail="Review not found")
             comment, queue_position = review_session.comment_service.add_comment(request)
+            
+            # Add comment to pending queue for MCP server
+            self.add_comment_to_queue(comment)
+            
             return {
                 "comment": comment.model_dump(),
                 "queue_position": queue_position
@@ -194,6 +199,10 @@ class ReviewManager:
                 # - Integrate with external systems
                 
                 print(f"Review {review_id} approved at {approval_time}")
+                
+                # Mark review as approved and trigger event for waiting MCP tools
+                self._review_approved[review_id] = True
+                self._comment_event.set()  # Wake up any waiting await_comments
                 
                 return {
                     "status": "approved",
@@ -264,26 +273,33 @@ class ReviewManager:
         """Get the current web server port, if running."""
         return self._web_server_port
     
-    def add_comment(self, comment: Comment) -> None:
-        """Add a comment to the pending list and notify waiters."""
+    def add_comment_to_queue(self, comment: Comment) -> None:
+        """Add a comment to the pending queue and notify waiters."""
         self._pending_comments.append(comment)
         self._comment_event.set()
     
-    async def await_comments(self, timeout: Optional[int] = None) -> List[Comment]:
-        """Wait for review comments to be posted."""
-        # Clear the event and wait for new comments
-        self._comment_event.clear()
+    async def await_comments(self) -> Union[Comment, ReviewApproved]:
+        """Wait for review comments to be posted or review to be approved.
         
-        try:
-            if timeout:
-                await asyncio.wait_for(self._comment_event.wait(), timeout=timeout)
-            else:
-                await self._comment_event.wait()
-                
-            # Return and clear pending comments
-            comments = self._pending_comments.copy()
-            self._pending_comments.clear()
-            return comments
+        Returns:
+        - Comment if a comment is available
+        - ReviewApproved if review is approved and no comments pending
+        """
+        while True:
+            # Check if there are pending comments
+            if self._pending_comments:
+                # Return the next comment (FIFO)
+                return self._pending_comments.pop(0)
             
-        except asyncio.TimeoutError:
-            return []
+            # Check if the most recent review is approved
+            recent_review = self.get_most_recent_review()
+            if recent_review and self._review_approved.get(recent_review.id, False):
+                # Review is approved and no pending comments
+                return ReviewApproved(
+                    review_id=recent_review.id,
+                    timestamp=datetime.now().isoformat()
+                )
+            
+            # Wait for new comments or approval
+            self._comment_event.clear()
+            await self._comment_event.wait()

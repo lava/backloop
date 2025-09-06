@@ -1,8 +1,8 @@
-from typing import Optional, List
+from typing import Optional, List, Union
 
 from mcp.server.fastmcp import FastMCP
 
-from reviewer.models import Comment
+from reviewer.models import Comment, ReviewApproved
 from reviewer.review_manager import ReviewManager
 
 # MCP server and review manager
@@ -44,15 +44,29 @@ Next step: Call the 'await_comments' tool to wait for review comments from the u
 
 
 @mcp.tool()
-async def await_comments(timeout: Optional[int] = None) -> List[Comment]:
+async def await_comments() -> Union[dict, str]:
     """Wait for review comments to be posted by the user.
     
-    Parameters:
-    - timeout: Maximum time to wait in seconds (default: no timeout)
-    
-    Returns list of comments when available.
+    Blocks until either:
+    - A comment is available (returns dict with comment details)
+    - The review is approved and no comments remain (returns "REVIEW APPROVED")
     """
-    return await review_manager.await_comments(timeout=timeout)
+    result = await review_manager.await_comments()
+    
+    if isinstance(result, ReviewApproved):
+        return "REVIEW APPROVED"
+    elif isinstance(result, Comment):
+        # Return comment with file name and line number
+        return {
+            "file_path": result.file_path,
+            "line_number": result.line_number,
+            "side": result.side,
+            "content": result.content,
+            "author": result.author
+        }
+    else:
+        # This shouldn't happen but handle it gracefully
+        return "UNKNOWN RESULT"
 
 
 
