@@ -28,17 +28,22 @@ def startreview(
     range: Optional[str] = None,
     since: Optional[str] = None
 ) -> str:
-    """Start a code review session. After starting the session, call the
-    await_comments tool and handle comments until the review is approved.
+    """Start a code review session.
     
-    Parameters:
+    # Workflow:
+    After starting the session, call the 'await_comments' tool and handle
+    comments until the review is approved. After addressing a comment, call
+    the 'resolve_comment' tool to mark it as done.
+    
+    # Parameters:
     - commit: Review changes for a specific commit (e.g., 'abc123', 'HEAD', 'main')
     - range: Review changes for a commit range (e.g., 'main..feature', 'abc123..def456')
     - since: Review live changes since a commit (defaults to 'HEAD')
 
     Note: Exactly one parameter must be specified.
 
-    Usage: This is typically used in one of three ways:
+    # Usage:
+    This is typically used in one of three ways:
      - Reviewing changes just before committing: startreview(since='HEAD')
      - Reviewing changes just after committing changes: startreview(since='HEAD~1')
      - Reviewing a PR before pushing it: startreview(range='origin/main..HEAD')
