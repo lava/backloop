@@ -1,5 +1,7 @@
 from typing import Optional
 from pathlib import Path
+import tempfile
+import subprocess
 from fastapi import APIRouter, Query, HTTPException
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
@@ -39,7 +41,7 @@ def create_api_router() -> APIRouter:
 
     @router.post("/api/edit")
     async def edit_file(request: FileEditRequest) -> dict:
-        """Edit a file using diff-like format with line numbers and content verification."""
+        """Edit a file by applying a unified diff patch using the system patch command."""
         try:
             # Resolve the file path
             file_path = Path(request.filename)
@@ -55,65 +57,61 @@ def create_api_router() -> APIRouter:
             if not file_path.is_file():
                 raise HTTPException(status_code=400, detail=f"Path is not a file: {request.filename}")
             
-            # Validate line numbers
-            if request.start_line < 1 or request.end_line < request.start_line:
-                raise HTTPException(
-                    status_code=400, 
-                    detail="Invalid line numbers: start_line must be >= 1 and end_line must be >= start_line"
-                )
+            # Apply the patch using the system patch command
+            # -u: unified diff format (though input should already be unified)
+            # --no-backup-if-mismatch: don't create .orig files
+            result = subprocess.run(
+                ['patch', '--no-backup-if-mismatch', str(file_path)],
+                input=request.patch,
+                capture_output=True,
+                text=True,
+                cwd=Path.cwd()
+            )
             
-            # Read the current content
-            lines = file_path.read_text(encoding='utf-8').splitlines(keepends=True)
-            total_lines = len(lines)
+            # Check if patch was successful
+            if result.returncode != 0:
+                # Patch failed - provide detailed error
+                error_msg = result.stderr or result.stdout
+                
+                # Try to give a more helpful error message
+                if "Reversed (or previously applied) patch detected" in error_msg:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Patch appears to be already applied or reversed"
+                    )
+                elif "can't find file to patch" in error_msg:
+                    raise HTTPException(
+                        status_code=404,
+                        detail="Cannot find file to patch"
+                    )
+                elif "Hunk #" in error_msg and "FAILED" in error_msg:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Patch does not apply cleanly - file content has changed"
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Failed to apply patch: {error_msg}"
+                    )
             
-            # Check if line numbers are within file bounds
-            if request.end_line > total_lines:
-                raise HTTPException(
-                    status_code=400, 
-                    detail=f"end_line ({request.end_line}) exceeds file length ({total_lines})"
-                )
-            
-            # Extract the lines to be replaced (convert to 0-based indexing)
-            start_idx = request.start_line - 1
-            end_idx = request.end_line  # end_line is inclusive, so we don't subtract 1
-            actual_content = ''.join(lines[start_idx:end_idx])
-            
-            # Remove trailing newline from actual_content for comparison if expected doesn't have it
-            actual_content_for_comparison = actual_content
-            if not request.expected_content.endswith('\n') and actual_content.endswith('\n'):
-                actual_content_for_comparison = actual_content.rstrip('\n')
-            
-            # Verify the expected content matches
-            if actual_content_for_comparison != request.expected_content:
-                raise HTTPException(
-                    status_code=409, 
-                    detail=f"Content mismatch at lines {request.start_line}-{request.end_line}. "
-                           f"Expected content does not match actual content."
-                )
-            
-            # Prepare new content - ensure it ends with newline if original did
-            new_content = request.new_content
-            if actual_content.endswith('\n') and not new_content.endswith('\n'):
-                new_content += '\n'
-            
-            # Apply the edit
-            new_lines = lines[:start_idx] + [new_content] + lines[end_idx:]
-            
-            # Write back to file
-            file_path.write_text(''.join(new_lines), encoding='utf-8')
-            
+            # Success - return result
             return {
                 "status": "success",
                 "message": f"File {request.filename} edited successfully",
                 "filename": request.filename,
-                "lines_affected": f"{request.start_line}-{request.end_line}"
+                "patch_output": result.stdout if result.stdout else "Patch applied successfully"
             }
             
+        except subprocess.SubprocessError as e:
+            raise HTTPException(status_code=500, detail=f"Error running patch command: {str(e)}")
         except UnicodeDecodeError:
             raise HTTPException(status_code=400, detail="File is not a valid UTF-8 text file")
         except PermissionError:
-            raise HTTPException(status_code=403, detail=f"Permission denied writing to {request.filename}")
+            raise HTTPException(status_code=403, detail=f"Permission denied accessing {request.filename}")
         except Exception as e:
+            if isinstance(e, HTTPException):
+                raise
             raise HTTPException(status_code=500, detail=f"Error editing file: {str(e)}")
 
     @router.get("/api/file-content", response_class=PlainTextResponse)

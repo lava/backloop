@@ -73,9 +73,6 @@ class CommentRequest(BaseModel):
 
 
 class FileEditRequest(BaseModel):
-    """Request to edit a file using diff-like format."""
+    """Request to edit a file using unified diff patch format."""
     filename: str
-    start_line: int  # 1-based line number where the edit starts
-    end_line: int    # 1-based line number where the edit ends (inclusive)
-    expected_content: str  # Expected content of the lines to be replaced
-    new_content: str       # New content to replace the expected content
+    patch: str  # Unified diff patch to apply to the file
