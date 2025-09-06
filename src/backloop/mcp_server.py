@@ -81,6 +81,7 @@ async def await_comments() -> Union[dict, str]:
     elif isinstance(result, Comment):
         # Return comment with file name and line number
         return {
+            "id": result.id,
             "file_path": result.file_path,
             "line_number": result.line_number,
             "side": result.side,
