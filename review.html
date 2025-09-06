@@ -1849,6 +1849,9 @@
                 case 'comment_dequeued':
                     handleCommentDequeued(event.data);
                     break;
+                case 'comment_resolved':
+                    handleCommentResolved(event.data);
+                    break;
                 case 'review_approved':
                     console.log('Review approved:', event.data);
                     break;
@@ -1871,33 +1874,56 @@
             updateAllCommentQueuePositions();
         }
         
+        // Handle comment resolved events
+        function handleCommentResolved(data) {
+            console.log('Comment resolved:', data);
+            
+            // Update the specific comment's status to resolved
+            updateCommentStatus(data.comment_id, data.status);
+        }
+        
         // Update a specific comment's status
         function updateCommentStatus(commentId, status) {
             const commentThreads = document.querySelectorAll(`.comment-thread[data-comment-id="${commentId}"]`);
             commentThreads.forEach(thread => {
                 const header = thread.querySelector('.comment-header');
                 if (header) {
-                    // Find existing queue position badge
-                    const queueBadge = header.querySelector('[style*="background: #0969da"]');
+                    // Find existing status badges (queue, in-progress, or resolved)
+                    const existingBadge = header.querySelector('[style*="background: #0969da"], [style*="background: #fb8500"], [style*="background: #1a7f37"]');
                     
+                    let badgeHtml = '';
                     if (status === 'in_progress') {
-                        if (queueBadge) {
-                            // Replace queue badge with in-progress badge
-                            queueBadge.outerHTML = `
-                                <span style="background: #fb8500; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">
-                                    In Progress
-                                </span>
-                            `;
-                        } else {
-                            // Add in-progress badge if no queue badge exists
-                            const timestamp = header.querySelector('.comment-timestamp');
-                            if (timestamp) {
-                                timestamp.insertAdjacentHTML('afterend', `
-                                    <span style="background: #fb8500; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">
-                                        In Progress
-                                    </span>
-                                `);
-                            }
+                        badgeHtml = `
+                            <span style="background: #fb8500; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">
+                                In Progress
+                            </span>
+                        `;
+                    } else if (status === 'resolved') {
+                        badgeHtml = `
+                            <span style="background: #1a7f37; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">
+                                ✓ Resolved
+                            </span>
+                        `;
+                    }
+                    
+                    if (existingBadge && badgeHtml) {
+                        // Replace existing badge with new status badge
+                        existingBadge.outerHTML = badgeHtml;
+                    } else if (!existingBadge && badgeHtml) {
+                        // Add status badge if no badge exists
+                        const timestamp = header.querySelector('.comment-timestamp');
+                        if (timestamp) {
+                            timestamp.insertAdjacentHTML('afterend', badgeHtml);
+                        }
+                    }
+                    
+                    // Update comment appearance for resolved status
+                    if (status === 'resolved') {
+                        thread.style.opacity = '0.7';
+                        thread.style.borderColor = '#1a7f37';
+                        const commentBody = thread.querySelector('.comment-body');
+                        if (commentBody) {
+                            commentBody.style.textDecoration = 'line-through';
                         }
                     }
                 }

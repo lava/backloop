@@ -10,6 +10,7 @@ import uuid
 class EventType(Enum):
     """Types of server-side events."""
     COMMENT_DEQUEUED = "comment_dequeued"
+    COMMENT_RESOLVED = "comment_resolved"
     FILE_CHANGED = "file_changed"
     REVIEW_APPROVED = "review_approved"
     REVIEW_UPDATED = "review_updated"
