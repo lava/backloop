@@ -996,22 +996,44 @@
                 return div.innerHTML;
             };
             
+            // Determine status badge HTML
+            let statusBadge = '';
+            if (comment.status === 'in_progress') {
+                statusBadge = `
+                    <span style="background: #fb8500; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">
+                        In Progress
+                    </span>
+                `;
+            } else if (comment.status === 'resolved') {
+                statusBadge = `
+                    <span style="background: #1a7f37; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">
+                        ✓ Resolved
+                    </span>
+                `;
+                // Update comment appearance for resolved status
+                commentDiv.style.opacity = '0.7';
+                commentDiv.style.borderColor = '#1a7f37';
+            } else if (comment.queuePosition) {
+                statusBadge = `
+                    <span style="background: #0969da; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">
+                        Queue #${comment.queuePosition}
+                    </span>
+                `;
+            }
+            
             commentDiv.innerHTML = `
                 <div class="comment">
                     <div class="comment-header">
                         <span class="comment-author">${escapeHtml(comment.author)}</span>
                         <span class="comment-timestamp">${escapeHtml(comment.timestamp)}</span>
-                        ${comment.queuePosition ? `
-                        <span style="background: #0969da; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">
-                            Queue #${comment.queuePosition}
-                        </span>` : ''}
+                        ${statusBadge}
                         <button class="comment-delete-btn" onclick="deleteComment('${comment.id}', this)" 
                                 style="margin-left: 8px; background: #da3633; color: white; border: none; padding: 2px 8px; border-radius: 4px; font-size: 12px; cursor: pointer;"
                                 title="Delete comment">
                             ×
                         </button>
                     </div>
-                    <div class="comment-body">${escapeHtml(comment.content)}</div>
+                    <div class="comment-body" ${comment.status === 'resolved' ? 'style="text-decoration: line-through;"' : ''}>${escapeHtml(comment.content)}</div>
                 </div>
             `;
             
@@ -2117,6 +2139,59 @@
         `;
         document.head.appendChild(style);
 
+        // Load existing comments from the server
+        async function loadExistingComments() {
+            try {
+                // Get review ID from URL
+                const pathParts = window.location.pathname.split('/');
+                const reviewId = pathParts[2]; // /review/{review_id}/view
+                
+                const response = await fetch(`/review/${reviewId}/api/comments`);
+                if (!response.ok) {
+                    console.warn('Failed to load existing comments');
+                    return;
+                }
+                
+                const comments = await response.json();
+                console.log('Loaded existing comments:', comments);
+                
+                // Organize comments by file/line/side and store in commentsData
+                commentsData = {}; // Clear existing data
+                for (const comment of comments) {
+                    const key = `${comment.file_path}:${comment.line_number}:${comment.side}`;
+                    if (!commentsData[key]) {
+                        commentsData[key] = [];
+                    }
+                    commentsData[key].push(comment);
+                }
+                
+                // Display comments in the UI
+                displayExistingComments(comments);
+                
+            } catch (error) {
+                console.error('Error loading existing comments:', error);
+            }
+        }
+        
+        // Display existing comments in the UI
+        function displayExistingComments(comments) {
+            for (const comment of comments) {
+                // Find the line element for this comment
+                const sanitizedPath = comment.file_path.replace(/[^a-zA-Z0-9]/g, '-');
+                const lineElementId = `line-${sanitizedPath}-${comment.side}-${comment.line_number}`;
+                const lineElement = document.getElementById(lineElementId);
+                
+                if (lineElement) {
+                    console.log(`Displaying existing comment for ${comment.file_path}:${comment.line_number}:${comment.side}`);
+                    displayCommentWithQueue(comment, comment.line_number, comment.side, lineElement);
+                } else {
+                    console.warn(`Could not find line element ${lineElementId} for comment:`, comment);
+                    // The line might not exist in the current diff state - this is expected
+                    // when files have changed since the comment was made
+                }
+            }
+        }
+
         // Initialize
         document.addEventListener('DOMContentLoaded', async () => {
             // Set up button handlers
@@ -2156,6 +2231,9 @@
                 // Render the diff
                 renderDiff(diffData);
                 setupSynchronizedScrolling();
+                
+                // Load and display existing comments
+                await loadExistingComments();
                 
                 // Log that rendering is complete
                 console.log('Diff rendered, click handlers attached to line numbers');
