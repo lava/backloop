@@ -1177,11 +1177,9 @@
             const newContent = textarea.value;
             
             try {
-                // Get the original content to create a proper diff
-                const originalLines = originalContent.split('\n');
-                const newLines = newContent.split('\n');
+                // Create a unified diff patch
+                const patch = createUnifiedDiff(originalContent, newContent, filePath);
                 
-                // For simplicity, replace the entire file content
                 const response = await fetch('/api/edit', {
                     method: 'POST',
                     headers: {
@@ -1189,10 +1187,7 @@
                     },
                     body: JSON.stringify({
                         filename: filePath,
-                        start_line: 1,
-                        end_line: originalLines.length,
-                        expected_content: originalContent,
-                        new_content: newContent
+                        patch: patch
                     })
                 });
                 
@@ -1214,6 +1209,29 @@
                 console.error('Error saving file:', error);
                 alert('Failed to save file: ' + error.message);
             }
+        }
+        
+        // Create a unified diff patch from original and new content
+        function createUnifiedDiff(originalContent, newContent, filePath) {
+            const originalLines = originalContent.split('\n');
+            const newLines = newContent.split('\n');
+            
+            // Simple unified diff creation - replace entire file
+            // In a real implementation, you'd use a proper diff algorithm
+            let patch = `--- a/${filePath}\n+++ b/${filePath}\n`;
+            patch += `@@ -1,${originalLines.length} +1,${newLines.length} @@\n`;
+            
+            // Add all old lines as deletions
+            for (const line of originalLines) {
+                patch += `-${line}\n`;
+            }
+            
+            // Add all new lines as additions
+            for (const line of newLines) {
+                patch += `+${line}\n`;
+            }
+            
+            return patch;
         }
         
         function showLineEditOption(lineElement, filePath, lineNumber, side) {
