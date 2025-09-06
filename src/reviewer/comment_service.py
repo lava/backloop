@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 
-from reviewer.models import Comment, CommentRequest
+from reviewer.models import Comment, CommentRequest, CommentStatus
 from reviewer.state_dir import get_state_dir
 
 
@@ -84,6 +84,31 @@ class CommentService:
     def get_queue_length(self) -> int:
         """Get the current length of the comment queue."""
         return len(self._comment_queue)
+    
+    def update_comment_status(self, comment_id: str, status: CommentStatus) -> Optional[Comment]:
+        """Update a comment's status."""
+        comment = self._comments.get(comment_id)
+        if comment:
+            comment.status = status
+            self._save_comments()
+        return comment
+    
+    def remove_comment_from_queue(self, comment_id: str) -> bool:
+        """Remove a comment from the queue and return True if it was removed."""
+        if comment_id in self._comment_queue:
+            self._comment_queue.remove(comment_id)
+            # Update positions for remaining comments
+            self._update_queue_positions()
+            self._save_comments()
+            return True
+        return False
+    
+    def _update_queue_positions(self) -> None:
+        """Update queue positions for all comments in the queue."""
+        for position, comment_id in enumerate(self._comment_queue):
+            comment = self._comments.get(comment_id)
+            if comment:
+                comment.queue_position = position + 1
     
     def _load_comments(self) -> Dict[str, Comment]:
         """Load comments from storage."""

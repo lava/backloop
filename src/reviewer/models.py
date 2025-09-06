@@ -4,6 +4,13 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
+class CommentStatus(str, Enum):
+    """Status of a comment in the review process."""
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    RESOLVED = "resolved"
+
+
 class LineType(str, Enum):
     """Type of line in a diff."""
     ADDITION = "addition"
@@ -61,6 +68,7 @@ class Comment(BaseModel):
     author: str = "User"
     timestamp: str
     queue_position: Optional[int] = None
+    status: CommentStatus = CommentStatus.PENDING
 
 
 class CommentRequest(BaseModel):

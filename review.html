@@ -63,6 +63,37 @@
             cursor: not-allowed;
         }
 
+        .refresh-button {
+            background: #0969da;
+            color: white;
+            border: 1px solid #0969da;
+            border-radius: 6px;
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background-color 0.2s;
+            margin-right: 8px;
+        }
+
+        .refresh-button:hover {
+            background: #0550ae;
+            border-color: #0550ae;
+        }
+
+        .refresh-button:disabled {
+            background: #8b949e;
+            border-color: #8b949e;
+            cursor: not-allowed;
+        }
+
+        .refresh-button.hidden {
+            display: none;
+        }
+
         .main-container {
             display: flex;
             height: calc(100vh - 65px);
@@ -772,12 +803,20 @@
 <body>
     <div class="header">
         <h1>Git Diff Viewer</h1>
-        <button id="approve-button" class="approve-button">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/>
-            </svg>
-            Approve
-        </button>
+        <div>
+            <button id="refresh-button" class="refresh-button hidden">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z"/>
+                </svg>
+                Refresh
+            </button>
+            <button id="approve-button" class="approve-button">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/>
+                </svg>
+                Approve
+            </button>
+        </div>
     </div>
 
     <div class="main-container">
@@ -1268,6 +1307,7 @@
         const range = urlParams.get('range');
         const since = urlParams.get('since');
         const live = urlParams.get('live') === 'true';
+        const mock = urlParams.get('mock') === 'true';
 
         // Build hierarchical file tree structure
         function buildFileTree(files) {
@@ -1480,6 +1520,14 @@
                 return await response.json();
             }
             
+            async getMockDiff() {
+                const response = await fetch(`${this.baseUrl}/api/diff/mock`);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch mock diff: ${response.statusText}`);
+                }
+                return await response.json();
+            }
+            
             async approve() {
                 // Extract review ID from current URL
                 const pathParts = window.location.pathname.split('/review/');
@@ -1504,6 +1552,11 @@
         
         // Initialize API client with root base URL
         const apiClient = new ApiClient('');
+        
+        // Event source for file changes
+        let eventSource = null;
+        let lastEventId = null;
+        const changedFiles = new Set();
 
         // Render diff content
         function renderDiff(diff) {
@@ -1751,6 +1804,199 @@
             newPane.addEventListener('scroll', () => syncScroll(newPane, oldPane));
         }
 
+        // Long polling for server-side events
+        async function startEventPolling() {
+            try {
+                while (true) {
+                    const params = new URLSearchParams();
+                    if (lastEventId) {
+                        params.append('last_event_id', lastEventId);
+                    }
+                    
+                    const response = await fetch(`/api/events?${params}`);
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch events');
+                    }
+                    
+                    const data = await response.json();
+                    
+                    // Process events
+                    if (data.events && data.events.length > 0) {
+                        for (const event of data.events) {
+                            handleServerEvent(event);
+                        }
+                        lastEventId = data.last_event_id;
+                    }
+                    
+                    // Small delay before next poll
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+            } catch (error) {
+                console.error('Event polling error:', error);
+                // Restart polling after a delay
+                setTimeout(startEventPolling, 5000);
+            }
+        }
+        
+        // Handle server-side events
+        function handleServerEvent(event) {
+            console.log('Received server event:', event);
+            
+            switch (event.type) {
+                case 'file_changed':
+                    handleFileChanged(event.data);
+                    break;
+                case 'comment_dequeued':
+                    handleCommentDequeued(event.data);
+                    break;
+                case 'review_approved':
+                    console.log('Review approved:', event.data);
+                    break;
+                case 'review_updated':
+                    console.log('Review updated:', event.data);
+                    break;
+                default:
+                    console.log('Unknown event type:', event.type);
+            }
+        }
+        
+        // Handle comment dequeued events
+        function handleCommentDequeued(data) {
+            console.log('Comment dequeued:', data);
+            
+            // Update the specific comment's status
+            updateCommentStatus(data.comment_id, data.status);
+            
+            // Update queue positions for all remaining comments
+            updateAllCommentQueuePositions();
+        }
+        
+        // Update a specific comment's status
+        function updateCommentStatus(commentId, status) {
+            const commentThreads = document.querySelectorAll(`.comment-thread[data-comment-id="${commentId}"]`);
+            commentThreads.forEach(thread => {
+                const header = thread.querySelector('.comment-header');
+                if (header) {
+                    // Find existing queue position badge
+                    const queueBadge = header.querySelector('[style*="background: #0969da"]');
+                    
+                    if (status === 'in_progress') {
+                        if (queueBadge) {
+                            // Replace queue badge with in-progress badge
+                            queueBadge.outerHTML = `
+                                <span style="background: #fb8500; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">
+                                    In Progress
+                                </span>
+                            `;
+                        } else {
+                            // Add in-progress badge if no queue badge exists
+                            const timestamp = header.querySelector('.comment-timestamp');
+                            if (timestamp) {
+                                timestamp.insertAdjacentHTML('afterend', `
+                                    <span style="background: #fb8500; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">
+                                        In Progress
+                                    </span>
+                                `);
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Update queue positions for all comments that still have queue badges
+        function updateAllCommentQueuePositions() {
+            const allQueueBadges = document.querySelectorAll('[style*="background: #0969da"]:not([style*="In Progress"])');
+            
+            // Sort by current queue position to maintain order
+            const badgesArray = Array.from(allQueueBadges);
+            badgesArray.sort((a, b) => {
+                const posA = parseInt(a.textContent.replace(/[^\d]/g, '')) || 0;
+                const posB = parseInt(b.textContent.replace(/[^\d]/g, '')) || 0;
+                return posA - posB;
+            });
+            
+            // Update each badge with new position
+            badgesArray.forEach((badge, index) => {
+                const newPosition = index + 1;
+                badge.textContent = `Queue #${newPosition}`;
+                
+                // Update the comment data in local storage
+                const commentThread = badge.closest('.comment-thread');
+                if (commentThread) {
+                    const commentId = commentThread.dataset.commentId;
+                    updateCommentQueuePositionInData(commentId, newPosition);
+                }
+            });
+        }
+        
+        // Update comment queue position in local data
+        function updateCommentQueuePositionInData(commentId, newPosition) {
+            for (const key in commentsData) {
+                const comments = commentsData[key];
+                for (const comment of comments) {
+                    if (comment.id === commentId) {
+                        comment.queuePosition = newPosition;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Handle file change events
+        function handleFileChanged(data) {
+            const filePath = data.file_path;
+            const eventType = data.event_type;
+            
+            console.log('File changed:', filePath, eventType);
+            
+            // Add to changed files set
+            changedFiles.add(filePath);
+            
+            // Show refresh button if we're in live mode
+            showRefreshButton();
+        }
+        
+        // Show the refresh button
+        function showRefreshButton() {
+            const refreshButton = document.getElementById('refresh-button');
+            refreshButton.classList.remove('hidden');
+        }
+        
+        // Hide the refresh button
+        function hideRefreshButton() {
+            const refreshButton = document.getElementById('refresh-button');
+            refreshButton.classList.add('hidden');
+        }
+        
+        // Handle refresh button click
+        async function handleRefresh() {
+            const refreshButton = document.getElementById('refresh-button');
+            const originalText = refreshButton.innerHTML;
+            
+            try {
+                // Show loading state
+                refreshButton.disabled = true;
+                refreshButton.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="animation: spin 1s linear infinite;">
+                        <path d="M8 3a5 5 0 100 10 5 5 0 000-10zM1 8a7 7 0 1114 0A7 7 0 011 8z"/>
+                    </svg>
+                    Refreshing...
+                `;
+                
+                // Reload the page to get fresh diff data
+                window.location.reload();
+                
+            } catch (error) {
+                console.error('Failed to refresh:', error);
+                alert('Failed to refresh. Please try again.');
+                
+                // Reset button state
+                refreshButton.disabled = false;
+                refreshButton.innerHTML = originalText;
+            }
+        }
+
         // Handle approve button click
         async function handleApprove() {
             const button = document.getElementById('approve-button');
@@ -1805,9 +2051,17 @@
 
         // Initialize
         document.addEventListener('DOMContentLoaded', async () => {
-            // Set up approve button handler
+            // Set up button handlers
             const approveButton = document.getElementById('approve-button');
+            const refreshButton = document.getElementById('refresh-button');
+            
             approveButton.addEventListener('click', handleApprove);
+            refreshButton.addEventListener('click', handleRefresh);
+            
+            // Start event polling for live mode only
+            if (live || (!commit && !range)) {
+                startEventPolling();
+            }
             
             // Existing initialization code...
             try {

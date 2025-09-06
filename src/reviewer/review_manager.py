@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from reviewer.models import Comment, CommentRequest, GitDiff, ReviewApproved
+from reviewer.models import Comment, CommentRequest, GitDiff, ReviewApproved, CommentStatus
 from reviewer.review_session import ReviewSession
 from reviewer.settings import settings  
 from fastapi import HTTPException, Path, APIRouter, Query
@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from pathlib import Path as PathLib
 from reviewer.api_router import create_api_router
 from reviewer.event_manager import EventManager, EventType
+from reviewer.file_watcher import FileWatcher
 
 # Request models
 class ApprovalRequest(BaseModel):
@@ -26,7 +27,7 @@ class ApprovalRequest(BaseModel):
 class ReviewManager:
     """Manages multiple review sessions and their mounted FastAPI instances."""
     
-    def __init__(self) -> None:
+    def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
         """Initialize the review manager."""
         self.active_reviews: Dict[str, ReviewSession] = {}
         self._main_app: Optional[FastAPI] = None
@@ -35,8 +36,12 @@ class ReviewManager:
         self._pending_comments: List[Comment] = []
         self._comment_event: Optional[asyncio.Event] = None
         self._review_approved: Dict[str, bool] = {}  # Track approval status per review
-        self._event_loop: Optional[asyncio.AbstractEventLoop] = None
+        self._event_loop = loop
         self.event_manager = EventManager()  # Add event manager
+        self.file_watcher = FileWatcher(self.event_manager, loop)  # Add file watcher
+        
+        # Start watching the current directory
+        self.file_watcher.start_watching(str(PathLib.cwd()))
     
     def get_free_port(self) -> int:
         """Get a free port number."""
@@ -362,15 +367,21 @@ class ReviewManager:
                     print(f"[DEBUG] Returning comment from queue: {comment.file_path}:{comment.line_number}")
                     print(f"[DEBUG] Remaining comments in queue: {len(self._pending_comments)}")
                 
-                # Emit event for comment being dequeued
+                # Update comment status to 'in progress' and remove from comment service queue
                 recent_review = self.get_most_recent_review()
+                if recent_review:
+                    recent_review.comment_service.update_comment_status(comment.id, CommentStatus.IN_PROGRESS)
+                    recent_review.comment_service.remove_comment_from_queue(comment.id)
+                
+                # Emit event for comment being dequeued with updated queue positions
                 await self.event_manager.emit_event(
                     EventType.COMMENT_DEQUEUED,
                     {
                         "comment_id": comment.id,
                         "file_path": comment.file_path,
                         "line_number": comment.line_number,
-                        "remaining_in_queue": len(self._pending_comments)
+                        "remaining_in_queue": len(self._pending_comments),
+                        "status": CommentStatus.IN_PROGRESS
                     },
                     review_id=recent_review.id if recent_review else None
                 )
