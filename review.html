@@ -1213,8 +1213,20 @@
         
         // Create a unified diff patch from original and new content
         function createUnifiedDiff(originalContent, newContent, filePath) {
-            const originalLines = originalContent.split('\n');
-            const newLines = newContent.split('\n');
+            // Handle the case where content doesn't end with newline
+            const originalEndsWithNewline = originalContent.endsWith('\n');
+            const newEndsWithNewline = newContent.endsWith('\n');
+            
+            // Split lines properly - remove empty trailing element if no trailing newline
+            let originalLines = originalContent.split('\n');
+            let newLines = newContent.split('\n');
+            
+            if (!originalEndsWithNewline && originalLines[originalLines.length - 1] === '') {
+                originalLines.pop();
+            }
+            if (!newEndsWithNewline && newLines[newLines.length - 1] === '') {
+                newLines.pop();
+            }
             
             // Simple unified diff creation - replace entire file
             // In a real implementation, you'd use a proper diff algorithm
@@ -1222,13 +1234,25 @@
             patch += `@@ -1,${originalLines.length} +1,${newLines.length} @@\n`;
             
             // Add all old lines as deletions
-            for (const line of originalLines) {
-                patch += `-${line}\n`;
+            for (let i = 0; i < originalLines.length; i++) {
+                patch += `-${originalLines[i]}`;
+                // Add newline unless it's the last line and original doesn't end with newline
+                if (i < originalLines.length - 1 || originalEndsWithNewline) {
+                    patch += '\n';
+                } else {
+                    patch += '\n\\ No newline at end of file\n';
+                }
             }
             
             // Add all new lines as additions
-            for (const line of newLines) {
-                patch += `+${line}\n`;
+            for (let i = 0; i < newLines.length; i++) {
+                patch += `+${newLines[i]}`;
+                // Add newline unless it's the last line and new doesn't end with newline
+                if (i < newLines.length - 1 || newEndsWithNewline) {
+                    patch += '\n';
+                } else {
+                    patch += '\n\\ No newline at end of file\n';
+                }
             }
             
             return patch;
