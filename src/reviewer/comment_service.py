@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 
 from reviewer.models import Comment, CommentRequest
+from reviewer.state_dir import get_state_dir
 
 
 class CommentService:
@@ -12,7 +13,10 @@ class CommentService:
     
     def __init__(self, storage_path: Optional[str] = None) -> None:
         """Initialize with optional storage path."""
-        self.storage_path = Path(storage_path) if storage_path else Path.cwd() / ".reviewer_comments.json"
+        if storage_path:
+            self.storage_path = Path(storage_path)
+        else:
+            self.storage_path = get_state_dir() / "reviewer_comments.json"
         self._comments: Dict[str, Comment] = self._load_comments()
         self._comment_queue: List[str] = []  # List of comment IDs in queue order
     

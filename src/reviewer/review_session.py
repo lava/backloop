@@ -5,6 +5,7 @@ from typing import Optional
 from reviewer.models import GitDiff
 from reviewer.comment_service import CommentService
 from reviewer.git_service import GitService
+from reviewer.state_dir import get_state_dir
 
 
 class ReviewSession:
@@ -33,7 +34,8 @@ class ReviewSession:
         
         # Create isolated services for this review session
         self.git_service = GitService()
-        self.comment_service = CommentService(storage_path=f".reviewer_comments_{self.id}.json")
+        comment_file = get_state_dir() / f"reviewer_comments_{self.id}.json"
+        self.comment_service = CommentService(storage_path=str(comment_file))
         
         # Get the diff data for this review
         self.diff = self._get_diff()
