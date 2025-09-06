@@ -63,7 +63,8 @@ async def main() -> None:
         print(f"[DEBUG] Debug setting: {settings.debug}")
     
     # Initialize review manager
-    review_manager = ReviewManager()
+    loop = asyncio.get_running_loop()
+    review_manager = ReviewManager(loop)
     
     # Create a review session for changes since HEAD~1
     print("Starting review session for changes since HEAD~1...")
