@@ -12,10 +12,11 @@ from pydantic import BaseModel
 from reviewer.models import Comment, CommentRequest, GitDiff, ReviewApproved
 from reviewer.review_session import ReviewSession
 from reviewer.settings import settings  
-from fastapi import HTTPException, Path, APIRouter
+from fastapi import HTTPException, Path, APIRouter, Query
 from fastapi.responses import FileResponse, RedirectResponse
 from pathlib import Path as PathLib
 from reviewer.api_router import create_api_router
+from reviewer.event_manager import EventManager, EventType
 
 # Request models
 class ApprovalRequest(BaseModel):
@@ -35,6 +36,7 @@ class ReviewManager:
         self._comment_event: Optional[asyncio.Event] = None
         self._review_approved: Dict[str, bool] = {}  # Track approval status per review
         self._event_loop: Optional[asyncio.AbstractEventLoop] = None
+        self.event_manager = EventManager()  # Add event manager
     
     def get_free_port(self) -> int:
         """Get a free port number."""
@@ -207,6 +209,16 @@ class ReviewManager:
                     print(f"[DEBUG] Marking review {review_id} as approved")
                 self._review_approved[review_id] = True
                 
+                # Emit event for review approval
+                await self.event_manager.emit_event(
+                    EventType.REVIEW_APPROVED,
+                    {
+                        "review_id": review_id,
+                        "timestamp": request.timestamp
+                    },
+                    review_id=review_id
+                )
+                
                 # Thread-safe way to set the event from FastAPI thread
                 if self._comment_event and self._event_loop:
                     self._event_loop.call_soon_threadsafe(self._comment_event.set)
@@ -218,6 +230,40 @@ class ReviewManager:
                 }
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Failed to approve review: {str(e)}")
+        
+        @router.get("/api/events")
+        async def get_events(
+            last_event_id: Optional[str] = Query(None, description="ID of the last event received"),
+            timeout: float = Query(30.0, description="Long-polling timeout in seconds", ge=0, le=60)
+        ) -> dict:
+            """Long-polling endpoint for server-side events.
+            
+            Returns any server-side changes since the last event ID.
+            Will wait up to 'timeout' seconds for new events before returning empty.
+            
+            Event types:
+            - comment_dequeued: A comment was removed from the review queue
+            - file_changed: A file in the repository was modified (future)
+            - review_approved: The review was approved
+            - review_updated: The review session was updated
+            """
+            # Subscribe to events
+            subscriber = await self.event_manager.subscribe(last_event_id)
+            
+            try:
+                # Wait for events
+                events = await self.event_manager.wait_for_events(subscriber, timeout=timeout)
+                
+                # Convert events to dictionaries
+                event_dicts = [event.to_dict() for event in events]
+                
+                return {
+                    "events": event_dicts,
+                    "last_event_id": subscriber.last_event_id
+                }
+            finally:
+                # Unsubscribe when done
+                await self.event_manager.unsubscribe(subscriber.id)
         
         return router
     
@@ -315,6 +361,20 @@ class ReviewManager:
                 if settings.debug:
                     print(f"[DEBUG] Returning comment from queue: {comment.file_path}:{comment.line_number}")
                     print(f"[DEBUG] Remaining comments in queue: {len(self._pending_comments)}")
+                
+                # Emit event for comment being dequeued
+                recent_review = self.get_most_recent_review()
+                await self.event_manager.emit_event(
+                    EventType.COMMENT_DEQUEUED,
+                    {
+                        "comment_id": comment.id,
+                        "file_path": comment.file_path,
+                        "line_number": comment.line_number,
+                        "remaining_in_queue": len(self._pending_comments)
+                    },
+                    review_id=recent_review.id if recent_review else None
+                )
+                
                 return comment
             
             # Check if the most recent review is approved

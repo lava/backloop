@@ -10,7 +10,10 @@ This script:
 
 import asyncio
 import sys
+import json
+import time
 from pathlib import Path
+from typing import Optional
 
 # Add src to path to import reviewer modules
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
@@ -18,6 +21,39 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 from reviewer.review_manager import ReviewManager
 from reviewer.models import Comment, ReviewApproved
 from reviewer.settings import settings
+from reviewer.event_manager import EventType
+
+
+async def monitor_events(review_manager: ReviewManager, stop_event: asyncio.Event) -> None:
+    """Monitor events in the background and print them."""
+    print("\n🔍 Starting event monitor...")
+    last_event_id: Optional[str] = None
+    
+    while not stop_event.is_set():
+        try:
+            # Subscribe to events
+            subscriber = await review_manager.event_manager.subscribe(last_event_id)
+            
+            # Wait for events with a short timeout
+            events = await review_manager.event_manager.wait_for_events(subscriber, timeout=2.0)
+            
+            # Print any events received
+            for event in events:
+                print(f"\n📡 EVENT: {event.type.value}")
+                print(f"   ID: {event.id}")
+                print(f"   Data: {json.dumps(event.data, indent=6)}")
+                print(f"   Review ID: {event.review_id}")
+                print(f"   Timestamp: {time.strftime('%H:%M:%S', time.localtime(event.timestamp))}")
+                last_event_id = event.id
+            
+            # Unsubscribe
+            await review_manager.event_manager.unsubscribe(subscriber.id)
+            
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"⚠️  Event monitor error: {e}")
+            await asyncio.sleep(1)
 
 
 async def main() -> None:
@@ -41,6 +77,10 @@ async def main() -> None:
     print(f"📎 Review URL: {review_url}")
     print(f"\nWaiting for review comments...")
     print("=" * 60)
+    
+    # Start event monitor in background
+    stop_event = asyncio.Event()
+    event_monitor_task = asyncio.create_task(monitor_events(review_manager, stop_event))
     
     comment_count = 0
     
@@ -69,6 +109,14 @@ async def main() -> None:
             print("-" * 60)
         else:
             print(f"\n⚠️  Unexpected result type: {type(result)}")
+    
+    # Stop event monitor
+    stop_event.set()
+    event_monitor_task.cancel()
+    try:
+        await event_monitor_task
+    except asyncio.CancelledError:
+        pass
     
     print("\n✅ Test completed successfully!")
 
