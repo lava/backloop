@@ -32,8 +32,9 @@ class ReviewManager:
         self._web_server_port: Optional[int] = None
         self._web_server_thread: Optional[threading.Thread] = None
         self._pending_comments: List[Comment] = []
-        self._comment_event = asyncio.Event()
+        self._comment_event: Optional[asyncio.Event] = None
         self._review_approved: Dict[str, bool] = {}  # Track approval status per review
+        self._event_loop: Optional[asyncio.AbstractEventLoop] = None
     
     def get_free_port(self) -> int:
         """Get a free port number."""
@@ -205,7 +206,10 @@ class ReviewManager:
                 if settings.debug:
                     print(f"[DEBUG] Marking review {review_id} as approved")
                 self._review_approved[review_id] = True
-                self._comment_event.set()  # Wake up any waiting await_comments
+                
+                # Thread-safe way to set the event from FastAPI thread
+                if self._comment_event and self._event_loop:
+                    self._event_loop.call_soon_threadsafe(self._comment_event.set)
                 
                 return {
                     "status": "approved",
@@ -282,7 +286,12 @@ class ReviewManager:
             print(f"[DEBUG] Adding comment to queue: {comment.file_path}:{comment.line_number} - {comment.content[:50]}...")
             print(f"[DEBUG] Queue length after adding: {len(self._pending_comments) + 1}")
         self._pending_comments.append(comment)
-        self._comment_event.set()
+        
+        # Thread-safe way to set the event from FastAPI thread
+        if self._comment_event and self._event_loop:
+            if settings.debug:
+                print("[DEBUG] Setting event from FastAPI thread")
+            self._event_loop.call_soon_threadsafe(self._comment_event.set)
     
     async def await_comments(self) -> Union[Comment, ReviewApproved]:
         """Wait for review comments to be posted or review to be approved.
@@ -291,6 +300,11 @@ class ReviewManager:
         - Comment if a comment is available
         - ReviewApproved if review is approved and no comments pending
         """
+        # Initialize event and store loop reference on first call
+        if self._comment_event is None:
+            self._comment_event = asyncio.Event()
+            self._event_loop = asyncio.get_running_loop()
+        
         if settings.debug:
             print("[DEBUG] await_comments called, entering wait loop")
         
