@@ -1,5 +1,5 @@
 [project]
-name = "backloop"
+name = "loopback"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -16,8 +16,8 @@ dependencies = [
 ]
 
 [project.scripts]
-server = "backloop.server:main"
-backloop-mcp = "backloop.mcp_server:main"
+server = "loopback.server:main"
+loopback-mcp = "loopback.mcp_server:main"
 
 [build-system]
 requires = ["hatchling"]
