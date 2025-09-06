@@ -8,7 +8,7 @@ from backloop.review_manager import ReviewManager
 from backloop.event_manager import EventType
 
 # MCP server and review manager
-mcp = FastMCP("Git Review Server")
+mcp = FastMCP("backloop-mcp")
 review_manager: Optional[ReviewManager] = None
 
 def get_review_manager() -> ReviewManager:
@@ -28,14 +28,20 @@ def startreview(
     range: Optional[str] = None,
     since: Optional[str] = None
 ) -> str:
-    """Start a code review session by mounting the review server and getting git diff data.
+    """Start a code review session. After starting the session, call the
+    await_comments tool and handle comments until the review is approved.
     
     Parameters:
     - commit: Review changes for a specific commit (e.g., 'abc123', 'HEAD', 'main')
     - range: Review changes for a commit range (e.g., 'main..feature', 'abc123..def456')
     - since: Review live changes since a commit (defaults to 'HEAD')
-    
+
     Note: Exactly one parameter must be specified.
+
+    Usage: This is typically used in one of three ways:
+     - Reviewing changes just before committing: startreview(since='HEAD')
+     - Reviewing changes just after committing changes: startreview(since='HEAD~1')
+     - Reviewing a PR before pushing it: startreview(range='origin/main..HEAD')
     """
     # Get review manager
     manager = get_review_manager()
@@ -51,9 +57,7 @@ def startreview(
     port = manager.start_web_server()
     review_url = f"http://127.0.0.1:{port}/review/{review_session.id}"
     
-    return f"""Review session started at {review_url}
-
-Next step: Call the 'await_comments' tool to wait for review comments from the user."""
+    return f"""Review session started at {review_url}."""
 
 
 @mcp.tool()

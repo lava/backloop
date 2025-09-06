@@ -17,7 +17,7 @@ dependencies = [
 
 [project.scripts]
 server = "backloop.server:main"
-startreview = "backloop.mcp_server:main"
+backloop-mcp = "backloop.mcp_server:main"
 
 [build-system]
 requires = ["hatchling"]
