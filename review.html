@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Backloop CI</title>
+    <title>Backloop Code Review</title>
     <style>
         * {
             margin: 0;
@@ -802,7 +802,7 @@
 </head>
 <body>
     <div class="header">
-        <h1>Git Diff Viewer</h1>
+        <h1>Backloop Code Review</h1>
         <div>
             <button id="refresh-button" class="refresh-button hidden">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
@@ -1382,7 +1382,7 @@
                             statusClass = ' file-renamed';
                             break;
                         case 'untracked':
-                            statusIndicator = '? ';
+                            statusIndicator = '';
                             statusClass = ' file-untracked';
                             break;
                         case 'modified':
