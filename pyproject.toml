@@ -1,5 +1,5 @@
 [project]
-name = "reviewer"
+name = "backloop"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -12,11 +12,12 @@ dependencies = [
     "fastapi>=0.115.6",
     "uvicorn>=0.34.0",
     "mcp>=1.2.0",
+    "watchdog>=6.0.0",
 ]
 
 [project.scripts]
-server = "reviewer.server:main"
-startreview = "reviewer.mcp_server:main"
+server = "backloop.server:main"
+startreview = "backloop.mcp_server:main"
 
 [build-system]
 requires = ["hatchling"]

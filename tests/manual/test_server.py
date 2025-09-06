@@ -15,13 +15,13 @@ import time
 from pathlib import Path
 from typing import Optional
 
-# Add src to path to import reviewer modules
+# Add src to path to import backloop modules
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from reviewer.review_manager import ReviewManager
-from reviewer.models import Comment, ReviewApproved
-from reviewer.settings import settings
-from reviewer.event_manager import EventType
+from backloop.review_manager import ReviewManager
+from backloop.models import Comment, ReviewApproved
+from backloop.settings import settings
+from backloop.event_manager import EventType
 
 
 async def monitor_events(review_manager: ReviewManager, stop_event: asyncio.Event) -> None:
