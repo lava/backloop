@@ -1,11 +1,12 @@
 [project]
 name = "loopback"
 version = "0.1.0"
-description = "Add your description here"
+description = "A web-based git diff viewer and review tool with MCP server integration"
 readme = "README.md"
 authors = [
     { name = "Benno Evers", email = "benno@bourbaki" }
 ]
+license = "GPL-2.0"
 requires-python = ">=3.13"
 dependencies = [
     "pydantic>=2.11.7",
@@ -13,6 +14,16 @@ dependencies = [
     "uvicorn>=0.34.0",
     "mcp>=1.2.0",
     "watchdog>=6.0.0",
+]
+keywords = ["git", "diff", "review", "mcp", "fastapi", "code-review"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU General Public License v2 (GPLv2)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Version Control :: Git",
+    "Topic :: Software Development :: Quality Assurance",
 ]
 
 [project.scripts]
@@ -26,7 +37,9 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "black>=25.1.0",
+    "build>=1.3.0",
     "mypy>=1.17.1",
+    "twine>=6.2.0",
 ]
 
 [tool.mypy]
