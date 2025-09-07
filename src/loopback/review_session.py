@@ -32,7 +32,7 @@ class ReviewSession:
         self.view_params = self._build_view_params()
         
         self.git_service = GitService()
-        comment_file = get_state_dir() / f"backloop_comments_{self.id}.json"
+        comment_file = get_state_dir() / f"loopback_comments_{self.id}.json"
         self.comment_service = CommentService(storage_path=str(comment_file))
         
         self.diff = self._get_diff()

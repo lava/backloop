@@ -124,7 +124,7 @@ async def main() -> None:
 
 if __name__ == "__main__":
     if settings.debug:
-        print(f"[DEBUG] Starting test script with BACKLOOP_CI_DEBUG={settings.debug}")
+        print(f"[DEBUG] Starting test script with LOOPBACK_CI_DEBUG={settings.debug}")
     
     try:
         asyncio.run(main())

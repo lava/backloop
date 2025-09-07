@@ -13,8 +13,8 @@ def get_state_dir() -> Path:
     else:
         state_dir = Path.home() / ".local" / "state"
     
-    # Create the backloop subdirectory
-    backloop_state_dir = state_dir / "backloop"
-    backloop_state_dir.mkdir(parents=True, exist_ok=True)
+    # Create the loopback subdirectory
+    loopback_state_dir = state_dir / "loopback"
+    loopback_state_dir.mkdir(parents=True, exist_ok=True)
     
-    return backloop_state_dir
+    return loopback_state_dir

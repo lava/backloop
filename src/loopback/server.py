@@ -107,7 +107,7 @@ async def approve_review(request: ApprovalRequest, review_id: str) -> dict:
 
 
 def main() -> None:
-    """Entry point for the backloop-server command."""
+    """Entry point for the loopback-server command."""
     import argparse
     import uvicorn
     
