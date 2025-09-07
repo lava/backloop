@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "A web-based git diff viewer and review tool with MCP server integration"
 readme = "README.md"
 authors = [
-    { name = "Benno Evers", email = "benno@bourbaki" }
+    { name = "Benno Evers", email = "benno.martin.evers@gmail.com" }
 ]
 license = "GPL-2.0"
 requires-python = ">=3.13"
