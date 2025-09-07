@@ -1,4 +1,6 @@
+import argparse
 import asyncio
+import uvicorn
 from typing import Optional
 from pathlib import Path
 from datetime import datetime
@@ -108,9 +110,6 @@ async def approve_review(request: ApprovalRequest, review_id: str) -> dict:
 
 def main() -> None:
     """Entry point for the loopback-server command."""
-    import argparse
-    import uvicorn
-    
     parser = argparse.ArgumentParser(description="Git Diff Reviewer Server")
     parser.add_argument("--port", type=int, help="Port to run the server on (default: random)")
     args = parser.parse_args()

@@ -22,8 +22,6 @@ def create_api_router() -> APIRouter:
         mock: bool = Query(False, description="Return mock data for testing")
     ) -> GitDiff:
         """Get diff data for specific commits or ranges."""
-        from fastapi import HTTPException
-        
         if mock:
             return get_mock_diff()
         
