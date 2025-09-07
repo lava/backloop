@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from loopback.models import Comment, CommentRequest, GitDiff, ReviewApproved, CommentStatus
+from loopback.responses import SuccessResponse, CommentResponse
 from loopback.review_session import ReviewSession
 from loopback.settings import settings  
 from fastapi import HTTPException, Path, APIRouter, Query
@@ -127,7 +128,7 @@ class ReviewManager:
             return review_session.comment_service.get_comments(file_path=file_path)
         
         @router.post("/review/{review_id}/api/comments")
-        async def create_review_comment(request: CommentRequest, review_id: str = Path(...)) -> dict:
+        async def create_review_comment(request: CommentRequest, review_id: str = Path(...)) -> SuccessResponse[dict]:
             """Create a comment for a specific review session and return it with queue position."""
             review_session = self.get_review_session(review_id)
             if not review_session:
@@ -137,10 +138,13 @@ class ReviewManager:
             # Add comment to pending queue for MCP server
             self.add_comment_to_queue(comment)
             
-            return {
-                "comment": comment.model_dump(),
-                "queue_position": queue_position
-            }
+            return SuccessResponse(
+                data={
+                    "comment": comment.model_dump(),
+                    "queue_position": queue_position
+                },
+                message="Comment created successfully"
+            )
         
         @router.get("/review/{review_id}/api/comments/{comment_id}")
         async def get_review_comment(review_id: str = Path(...), comment_id: str = Path(...)) -> Comment:
@@ -165,7 +169,7 @@ class ReviewManager:
             return comment
         
         @router.delete("/review/{review_id}/api/comments/{comment_id}")
-        async def delete_review_comment(review_id: str = Path(...), comment_id: str = Path(...)) -> dict:
+        async def delete_review_comment(review_id: str = Path(...), comment_id: str = Path(...)) -> SuccessResponse[None]:
             """Delete a comment from a review session."""
             review_session = self.get_review_session(review_id)
             if not review_session:
@@ -173,10 +177,10 @@ class ReviewManager:
             success = review_session.comment_service.delete_comment(comment_id)
             if not success:
                 raise HTTPException(status_code=404, detail="Comment not found")
-            return {"message": "Comment deleted successfully"}
+            return SuccessResponse(data=None, message="Comment deleted successfully")
         
         @router.post("/review/{review_id}/approve")
-        async def approve_review(request: ApprovalRequest, review_id: str = Path(...)) -> dict:
+        async def approve_review(request: ApprovalRequest, review_id: str = Path(...)) -> SuccessResponse[dict]:
             """Approve the current review."""
             review_session = self.get_review_session(review_id)
             if not review_session:
@@ -213,11 +217,13 @@ class ReviewManager:
                 if self._comment_event and self._event_loop:
                     self._event_loop.call_soon_threadsafe(self._comment_event.set)
                 
-                return {
-                    "status": "approved",
-                    "timestamp": request.timestamp,
-                    "message": f"Review {review_id} has been approved successfully"
-                }
+                return SuccessResponse(
+                    data={
+                        "status": "approved",
+                        "timestamp": request.timestamp
+                    },
+                    message=f"Review {review_id} has been approved successfully"
+                )
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Failed to approve review: {str(e)}")
         
@@ -225,7 +231,7 @@ class ReviewManager:
         async def get_events(
             last_event_id: Optional[str] = Query(None, description="ID of the last event received"),
             timeout: float = Query(30.0, description="Long-polling timeout in seconds", ge=0, le=60)
-        ) -> dict:
+        ) -> SuccessResponse[dict]:
             """Long-polling endpoint for server-side events.
             
             Returns any server-side changes since the last event ID.
@@ -247,10 +253,13 @@ class ReviewManager:
                 # Convert events to dictionaries
                 event_dicts = [event.to_dict() for event in events]
                 
-                return {
-                    "events": event_dicts,
-                    "last_event_id": subscriber.last_event_id
-                }
+                return SuccessResponse(
+                    data={
+                        "events": event_dicts,
+                        "last_event_id": subscriber.last_event_id
+                    },
+                    message="Events retrieved successfully"
+                )
             finally:
                 # Unsubscribe when done
                 await self.event_manager.unsubscribe(subscriber.id)

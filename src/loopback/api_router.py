@@ -7,6 +7,7 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 from loopback.models import GitDiff, FileEditRequest
+from loopback.responses import SuccessResponse, FileEditResponse
 from loopback.review_session import ReviewSession
 from loopback.mock_data import get_mock_diff
 
@@ -46,7 +47,7 @@ def create_api_router() -> APIRouter:
         return review_session.diff
 
     @router.post("/api/edit")
-    async def edit_file(request: FileEditRequest) -> dict:
+    async def edit_file(request: FileEditRequest) -> FileEditResponse:
         """Edit a file by applying a unified diff patch using the system patch command."""
         try:
             file_path = Path(request.filename)
@@ -93,12 +94,12 @@ def create_api_router() -> APIRouter:
                         detail=f"Failed to apply patch: {error_msg}"
                     )
             
-            return {
-                "status": "success",
-                "message": f"File {request.filename} edited successfully",
-                "filename": request.filename,
-                "patch_output": result.stdout if result.stdout else "Patch applied successfully"
-            }
+            return FileEditResponse(
+                status="success",
+                message=f"File {request.filename} edited successfully",
+                filename=request.filename,
+                patch_output=result.stdout if result.stdout else "Patch applied successfully"
+            )
             
         except subprocess.SubprocessError as e:
             raise HTTPException(status_code=500, detail=f"Error running patch command: {str(e)}")
