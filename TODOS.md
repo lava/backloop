@@ -21,12 +21,12 @@
 - [x] Ensure all class methods have proper type hints
 - [x] Run mypy to verify type correctness after changes
 
-## 4. Simplify Event Management with asyncio.Queue
-- [ ] Replace `_pending_comments: List[Comment]` with `asyncio.Queue[Comment]`
-- [ ] Remove manual thread-safe event loop callbacks in `ReviewManager`
-- [ ] Refactor `add_comment_to_queue()` to use queue.put()
-- [ ] Refactor `await_comments()` to use queue.get() with timeout
-- [ ] Simplify the event notification system between FastAPI and MCP threads
+## 4. Simplify Event Management with asyncio.Queue ✅
+- [x] Replace `_pending_comments: List[Comment]` with `asyncio.Queue[Comment]`
+- [x] Remove manual thread-safe event loop callbacks in `ReviewManager`
+- [x] Refactor `add_comment_to_queue()` to use queue.put()
+- [x] Refactor `await_comments()` to use queue.get() with timeout
+- [x] Simplify the event notification system between FastAPI and MCP threads
 
 ## 5. Improve Error Handling
 - [ ] Create `src/loopback/exceptions.py` with custom exception classes

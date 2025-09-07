@@ -34,8 +34,7 @@ class ReviewManager:
         self._main_app: FastAPI | None = None
         self._web_server_port: int | None = None
         self._web_server_thread: threading.Thread | None = None
-        self._pending_comments: List[Comment] = []
-        self._comment_event: asyncio.Event | None = None
+        self._pending_comments: asyncio.Queue[Comment] = asyncio.Queue()
         self._review_approved: Dict[str, bool] = {}  # Track approval status per review
         self._event_loop = loop
         self.event_manager = EventManager()  # Add event manager
@@ -213,9 +212,7 @@ class ReviewManager:
                     review_id=review_id
                 )
                 
-                # Thread-safe way to set the event from FastAPI thread
-                if self._comment_event and self._event_loop:
-                    self._event_loop.call_soon_threadsafe(self._comment_event.set)
+                # No need for manual event signaling with asyncio.Queue
                 
                 return SuccessResponse(
                     data={
@@ -326,17 +323,16 @@ class ReviewManager:
         return self._web_server_port
     
     def add_comment_to_queue(self, comment: Comment) -> None:
-        """Add a comment to the pending queue and notify waiters."""
+        """Add a comment to the pending queue."""
         if settings.debug:
             print(f"[DEBUG] Adding comment to queue: {comment.file_path}:{comment.line_number} - {comment.content[:50]}...")
-            print(f"[DEBUG] Queue length after adding: {len(self._pending_comments) + 1}")
-        self._pending_comments.append(comment)
+            print(f"[DEBUG] Queue length after adding: {self._pending_comments.qsize() + 1}")
         
-        # Thread-safe way to set the event from FastAPI thread
-        if self._comment_event and self._event_loop:
-            if settings.debug:
-                print("[DEBUG] Setting event from FastAPI thread")
-            self._event_loop.call_soon_threadsafe(self._comment_event.set)
+        # Thread-safe way to put comment in queue from FastAPI thread
+        if self._event_loop:
+            self._event_loop.call_soon_threadsafe(self._pending_comments.put_nowait, comment)
+        else:
+            self._pending_comments.put_nowait(comment)
     
     async def await_comments(self) -> Union[Comment, ReviewApproved]:
         """Wait for review comments to be posted or review to be approved.
@@ -345,24 +341,31 @@ class ReviewManager:
         - Comment if a comment is available
         - ReviewApproved if review is approved and no comments pending
         """
-        # Initialize event and store loop reference on first call
-        if self._comment_event is None:
-            self._comment_event = asyncio.Event()
-            self._event_loop = asyncio.get_running_loop()
-        
         if settings.debug:
             print("[DEBUG] await_comments called, entering wait loop")
         
         while True:
-            # Check if there are pending comments
-            if self._pending_comments:
-                comment = self._pending_comments.pop(0)
+            # Check if the most recent review is approved (before waiting for comments)
+            recent_review = self.get_most_recent_review()
+            if recent_review and self._review_approved.get(recent_review.id, False):
+                # Check if queue is empty - if so, return approval
+                if self._pending_comments.empty():
+                    if settings.debug:
+                        print(f"[DEBUG] Review {recent_review.id} is approved and queue empty, returning ReviewApproved")
+                    return ReviewApproved(
+                        review_id=recent_review.id,
+                        timestamp=datetime.now().isoformat()
+                    )
+            
+            try:
+                # Wait for a comment with a short timeout to periodically check approval status
+                comment = await asyncio.wait_for(self._pending_comments.get(), timeout=1.0)
+                
                 if settings.debug:
                     print(f"[DEBUG] Returning comment from queue: {comment.file_path}:{comment.line_number}")
-                    print(f"[DEBUG] Remaining comments in queue: {len(self._pending_comments)}")
+                    print(f"[DEBUG] Remaining comments in queue: {self._pending_comments.qsize()}")
                 
                 # Update comment status to 'in progress' and remove from comment service queue
-                recent_review = self.get_most_recent_review()
                 if recent_review:
                     recent_review.comment_service.update_comment_status(comment.id, CommentStatus.IN_PROGRESS)
                     recent_review.comment_service.remove_comment_from_queue(comment.id)
@@ -374,30 +377,16 @@ class ReviewManager:
                         "comment_id": comment.id,
                         "file_path": comment.file_path,
                         "line_number": comment.line_number,
-                        "remaining_in_queue": len(self._pending_comments),
+                        "remaining_in_queue": self._pending_comments.qsize(),
                         "status": CommentStatus.IN_PROGRESS
                     },
                     review_id=recent_review.id if recent_review else None
                 )
                 
                 return comment
-            
-            # Check if the most recent review is approved
-            recent_review = self.get_most_recent_review()
-            if recent_review and self._review_approved.get(recent_review.id, False):
+                
+            except asyncio.TimeoutError:
+                # Timeout occurred - continue loop to check approval status again
                 if settings.debug:
-                    print(f"[DEBUG] Review {recent_review.id} is approved, returning ReviewApproved")
-                return ReviewApproved(
-                    review_id=recent_review.id,
-                    timestamp=datetime.now().isoformat()
-                )
-            
-            if settings.debug:
-                print(f"[DEBUG] No comments in queue, waiting for event...")
-            
-            # Wait for new comments or approval
-            self._comment_event.clear()
-            await self._comment_event.wait()
-            
-            if settings.debug:
-                print("[DEBUG] Event triggered, checking for comments/approval")
+                    print("[DEBUG] Queue timeout, checking approval status...")
+                continue
