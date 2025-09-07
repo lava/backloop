@@ -41,7 +41,6 @@ class ReviewFileSystemEventHandler(FileSystemEventHandler):
             file_path = str(Path(str(event.src_path)).resolve())
             
             if self._should_emit_event(file_path):
-                # Schedule the coroutine in the main event loop
                 asyncio.run_coroutine_threadsafe(
                     self.event_manager.emit_event(
                         EventType.FILE_CHANGED,
@@ -80,12 +79,10 @@ class FileWatcher:
         if self._is_watching:
             return
         
-        # Start observer if not already running
         if self.observer is None:
             self.observer = Observer()
             self.observer.start()
         
-        # Add watcher for the directory (recursive)
         handler = ReviewFileSystemEventHandler(self.event_manager, self.loop)
         try:
             watch_handle = self.observer.schedule(

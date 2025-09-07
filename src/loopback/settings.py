@@ -14,5 +14,4 @@ class Settings(BaseSettings):
         env_prefix = "BACKLOOP_CI_"
 
 
-# Global settings instance
 settings = Settings()

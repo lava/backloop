@@ -15,7 +15,6 @@ from loopback.review_manager import ReviewManager
 
 app = FastAPI(title="Git Diff Viewer", version="0.1.0")
 
-# Add CORS middleware for frontend development
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # In production, specify exact origins
@@ -24,7 +23,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Get the project root directory
 BASE_DIR = Path(__file__).parent.parent.parent
 
 # Request models
@@ -45,13 +43,10 @@ async def startup_event() -> None:
     """Initialize the review manager with event loop."""
     global review_manager
     
-    # Get the current event loop
     loop = asyncio.get_running_loop()
     
-    # Create review manager with the event loop
     review_manager = ReviewManager(loop)
     
-    # Add the dynamic router with events API
     dynamic_router = review_manager.create_dynamic_router()
     app.include_router(dynamic_router)
 
@@ -72,7 +67,6 @@ def get_or_create_review_session() -> ReviewSession:
 @app.get("/")
 async def redirect_to_review() -> RedirectResponse:
     """Redirect to the review page with default parameters (live diff since HEAD)."""
-    # Create a review session and redirect to it
     review_session = get_or_create_review_session()
     return RedirectResponse(url=f"/review/{review_session.id}/view?live=true&since=HEAD")
 

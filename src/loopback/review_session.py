@@ -28,16 +28,13 @@ class ReviewSession:
         self.since = since
         self.created_at = time.time()
         
-        # Store parameters for view redirect
         self.is_live = since is not None or (commit is None and range is None)
         self.view_params = self._build_view_params()
         
-        # Create isolated services for this review session
         self.git_service = GitService()
         comment_file = get_state_dir() / f"backloop_comments_{self.id}.json"
         self.comment_service = CommentService(storage_path=str(comment_file))
         
-        # Get the diff data for this review
         self.diff = self._get_diff()
     
     def _build_view_params(self) -> str:
