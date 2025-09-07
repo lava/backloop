@@ -15,10 +15,7 @@ class BaseResponse(BaseModel, Generic[T]):
 
 class SuccessResponse(BaseResponse[T]):
     """Standard success response format."""
-    status: str = "success"
-    
-    def __init__(self, data: T, message: str | None = None, **kwargs: Any) -> None:
-        super().__init__(status="success", data=data, message=message, **kwargs)
+    status: str = Field(default="success")
 
 
 class ErrorResponse(BaseModel):
