@@ -89,21 +89,6 @@ class ReviewManager:
                 raise HTTPException(status_code=404, detail="No active reviews found")
             return RedirectResponse(url=f"/review/{recent_review.id}")
         
-        @router.get("/mock")
-        async def get_mock_page() -> FileResponse:
-            """Serve the mock demo page."""
-            mock_path = BASE_DIR / "mock.html"
-            if not mock_path.exists():
-                raise HTTPException(status_code=404, detail="mock.html not found")
-            return FileResponse(mock_path)
-        
-        @router.get("/mock-data.js")
-        async def get_mock_data() -> FileResponse:
-            """Serve the mock data JavaScript file."""
-            mock_data_path = BASE_DIR / "mock-data.js"
-            if not mock_data_path.exists():
-                raise HTTPException(status_code=404, detail="mock-data.js not found")
-            return FileResponse(mock_data_path, media_type="application/javascript")
         
         @router.get("/review/{review_id}")
         async def redirect_to_review_view(review_id: str = Path(...)) -> RedirectResponse:

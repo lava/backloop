@@ -109,21 +109,6 @@ async def approve_review(request: ApprovalRequest, review_id: str) -> dict:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to approve review: {str(e)}")
 
-@app.get("/mock")
-async def get_mock_page() -> FileResponse:
-    """Serve the mock demo page."""
-    mock_path = BASE_DIR / "mock.html"
-    if not mock_path.exists():
-        raise HTTPException(status_code=404, detail="mock.html not found")
-    return FileResponse(mock_path)
-
-@app.get("/mock-data.js")
-async def get_mock_data() -> FileResponse:
-    """Serve the mock data JavaScript file."""
-    mock_data_path = BASE_DIR / "mock-data.js"
-    if not mock_data_path.exists():
-        raise HTTPException(status_code=404, detail="mock-data.js not found")
-    return FileResponse(mock_data_path, media_type="application/javascript")
 
 
 
