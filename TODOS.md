@@ -14,12 +14,12 @@
 - [x] Replace dict returns with proper response models
 - [x] Ensure all endpoints have proper response model type hints
 
-## 3. Type Hint Improvements
-- [ ] Add missing return type hints for async functions across all modules
-- [ ] Convert `Optional[X]` to `X | None` syntax (Python 3.10+)
-- [ ] Add type hints to function parameters that are missing them
-- [ ] Ensure all class methods have proper type hints
-- [ ] Run mypy to verify type correctness after changes
+## 3. Type Hint Improvements ✅
+- [x] Add missing return type hints for async functions across all modules
+- [x] Convert `Optional[X]` to `X | None` syntax (Python 3.10+)
+- [x] Add type hints to function parameters that are missing them
+- [x] Ensure all class methods have proper type hints
+- [x] Run mypy to verify type correctness after changes
 
 ## 4. Simplify Event Management with asyncio.Queue
 - [ ] Replace `_pending_comments: List[Comment]` with `asyncio.Queue[Comment]`

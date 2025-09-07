@@ -1,5 +1,5 @@
 import asyncio
-from typing import Optional, List, Union
+from typing import List, Union
 
 from mcp.server.fastmcp import FastMCP
 
@@ -9,7 +9,7 @@ from loopback.event_manager import EventType
 
 # MCP server and review manager
 mcp = FastMCP("loopback-mcp")
-review_manager: Optional[ReviewManager] = None
+review_manager: ReviewManager | None = None
 
 def get_review_manager() -> ReviewManager:
     """Get or create the review manager with event loop."""
@@ -24,9 +24,9 @@ def get_review_manager() -> ReviewManager:
 
 @mcp.tool()
 def startreview(
-    commit: Optional[str] = None,
-    range: Optional[str] = None,
-    since: Optional[str] = None
+    commit: str | None = None,
+    range: str | None = None,
+    since: str | None = None
 ) -> str:
     """Start a code review session.
     

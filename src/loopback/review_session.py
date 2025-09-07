@@ -1,6 +1,5 @@
 import uuid
 import time
-from typing import Optional
 
 from loopback.models import GitDiff
 from loopback.comment_service import CommentService
@@ -12,9 +11,9 @@ class ReviewSession:
     """Manages a single review session with its own comment service and git diff data."""
     
     def __init__(self, 
-                 commit: Optional[str] = None,
-                 range: Optional[str] = None,
-                 since: Optional[str] = None) -> None:
+                 commit: str | None = None,
+                 range: str | None = None,
+                 since: str | None = None) -> None:
         """Initialize a review session.
         
         Parameters:

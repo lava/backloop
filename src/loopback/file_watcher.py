@@ -2,7 +2,7 @@ import asyncio
 import time
 import threading
 from pathlib import Path
-from typing import Set, Optional, Dict, Any, Callable, Awaitable
+from typing import Set, Dict, Any, Callable, Awaitable
 from watchdog.observers import Observer
 from watchdog.observers.api import BaseObserver, ObservedWatch
 from watchdog.events import FileSystemEventHandler, FileModifiedEvent, FileCreatedEvent, FileSystemEvent
@@ -12,7 +12,7 @@ from loopback.event_manager import EventManager, EventType
 class ReviewFileSystemEventHandler(FileSystemEventHandler):
     """File system event handler for the review system."""
     
-    def __init__(self, event_manager: EventManager, loop: asyncio.AbstractEventLoop):
+    def __init__(self, event_manager: EventManager, loop: asyncio.AbstractEventLoop) -> None:
         """Initialize the handler.
         
         Args:
@@ -57,7 +57,7 @@ class ReviewFileSystemEventHandler(FileSystemEventHandler):
 class FileWatcher:
     """Watches files for changes and emits events."""
     
-    def __init__(self, event_manager: EventManager, loop: asyncio.AbstractEventLoop):
+    def __init__(self, event_manager: EventManager, loop: asyncio.AbstractEventLoop) -> None:
         """Initialize the file watcher.
         
         Args:
@@ -66,7 +66,7 @@ class FileWatcher:
         """
         self.event_manager = event_manager
         self.loop = loop
-        self.observer: Optional[BaseObserver] = None
+        self.observer: BaseObserver | None = None
         self.watch_handles: Dict[str, ObservedWatch] = {}  # Directory -> watch handle
         self._is_watching = False
     

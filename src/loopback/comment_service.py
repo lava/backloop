@@ -2,7 +2,7 @@ import json
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Tuple
 
 from loopback.models import Comment, CommentRequest, CommentStatus
 from loopback.state_dir import get_state_dir
@@ -11,7 +11,7 @@ from loopback.state_dir import get_state_dir
 class CommentService:
     """Service for managing comments on diff lines."""
     
-    def __init__(self, storage_path: Optional[str] = None) -> None:
+    def __init__(self, storage_path: str | None = None) -> None:
         """Initialize with optional storage path."""
         if storage_path:
             self.storage_path = Path(storage_path)
@@ -43,18 +43,18 @@ class CommentService:
         self._save_comments()
         return comment, queue_position
     
-    def get_comments(self, file_path: Optional[str] = None) -> List[Comment]:
+    def get_comments(self, file_path: str | None = None) -> List[Comment]:
         """Get all comments, optionally filtered by file path."""
         comments = list(self._comments.values())
         if file_path:
             comments = [c for c in comments if c.file_path == file_path]
         return sorted(comments, key=lambda c: c.timestamp)
     
-    def get_comment(self, comment_id: str) -> Optional[Comment]:
+    def get_comment(self, comment_id: str) -> Comment | None:
         """Get a specific comment by ID."""
         return self._comments.get(comment_id)
     
-    def update_comment(self, comment_id: str, content: str) -> Optional[Comment]:
+    def update_comment(self, comment_id: str, content: str) -> Comment | None:
         """Update a comment's content."""
         comment = self._comments.get(comment_id)
         if comment:
@@ -85,7 +85,7 @@ class CommentService:
         """Get the current length of the comment queue."""
         return len(self._comment_queue)
     
-    def update_comment_status(self, comment_id: str, status: CommentStatus) -> Optional[Comment]:
+    def update_comment_status(self, comment_id: str, status: CommentStatus) -> Comment | None:
         """Update a comment's status."""
         comment = self._comments.get(comment_id)
         if comment:

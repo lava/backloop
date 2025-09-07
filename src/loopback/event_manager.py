@@ -1,6 +1,6 @@
 import asyncio
 import time
-from typing import Dict, List, Optional, Any, Set
+from typing import Dict, List, Any, Set
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -23,7 +23,7 @@ class Event:
     type: EventType
     data: Dict[str, Any]
     timestamp: float
-    review_id: Optional[str] = None
+    review_id: str | None = None
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert event to dictionary for JSON serialization."""
@@ -42,7 +42,7 @@ class EventSubscriber:
     id: str
     event: asyncio.Event
     events: List[Event] = field(default_factory=list)
-    last_event_id: Optional[str] = None
+    last_event_id: str | None = None
     created_at: float = field(default_factory=time.time)
 
 
@@ -63,7 +63,7 @@ class EventManager:
     async def emit_event(self, 
                          event_type: EventType, 
                          data: Dict[str, Any],
-                         review_id: Optional[str] = None) -> Event:
+                         review_id: str | None = None) -> Event:
         """Emit a new event and notify subscribers.
         
         Args:
@@ -99,7 +99,7 @@ class EventManager:
             
             return event
     
-    async def subscribe(self, last_event_id: Optional[str] = None) -> EventSubscriber:
+    async def subscribe(self, last_event_id: str | None = None) -> EventSubscriber:
         """Subscribe to events.
         
         Args:

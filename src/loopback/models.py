@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Optional
+from typing import List
 
 from pydantic import BaseModel, Field
 
@@ -21,8 +21,8 @@ class LineType(str, Enum):
 class DiffLine(BaseModel):
     """A single line in a diff chunk."""
     type: LineType
-    oldNum: Optional[int] = Field(None, serialization_alias="oldNum", validation_alias="old_num")
-    newNum: Optional[int] = Field(None, serialization_alias="newNum", validation_alias="new_num")
+    oldNum: int | None = Field(None, serialization_alias="oldNum", validation_alias="old_num")
+    newNum: int | None = Field(None, serialization_alias="newNum", validation_alias="new_num")
     content: str
     
     class Config:
@@ -41,21 +41,21 @@ class DiffChunk(BaseModel):
 class DiffFile(BaseModel):
     """A file that has been changed in a diff."""
     path: str
-    old_path: Optional[str] = None
+    old_path: str | None = None
     additions: int
     deletions: int
     chunks: List[DiffChunk]
     is_binary: bool = False
     is_renamed: bool = False
-    status: Optional[str] = None
+    status: str | None = None
 
 
 class GitDiff(BaseModel):
     """Complete diff information."""
     files: List[DiffFile]
-    commit_hash: Optional[str] = None
-    author: Optional[str] = None
-    message: Optional[str] = None
+    commit_hash: str | None = None
+    author: str | None = None
+    message: str | None = None
 
 
 class Comment(BaseModel):
@@ -67,7 +67,7 @@ class Comment(BaseModel):
     content: str
     author: str = "User"
     timestamp: str
-    queue_position: Optional[int] = None
+    queue_position: int | None = None
     status: CommentStatus = CommentStatus.PENDING
 
 

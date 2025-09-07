@@ -1,6 +1,6 @@
 import subprocess
 import re
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any
 from pathlib import Path
 
 from loopback.models import GitDiff, DiffFile, DiffChunk, DiffLine, LineType
@@ -9,7 +9,7 @@ from loopback.models import GitDiff, DiffFile, DiffChunk, DiffLine, LineType
 class GitService:
     """Service for interacting with git repositories."""
     
-    def __init__(self, repo_path: Optional[str] = None) -> None:
+    def __init__(self, repo_path: str | None = None) -> None:
         """Initialize with optional repository path."""
         self.repo_path = Path(repo_path) if repo_path else Path.cwd()
         
@@ -162,8 +162,8 @@ class GitService:
     def _parse_diff_output(self, diff_output: str) -> List[DiffFile]:
         """Parse git diff output into structured data."""
         files = []
-        current_file: Optional[Dict[str, Any]] = None
-        current_chunk: Optional[Dict[str, Any]] = None
+        current_file: Dict[str, Any] | None = None
+        current_chunk: Dict[str, Any] | None = None
         
         lines = diff_output.split('\n')
         i = 0

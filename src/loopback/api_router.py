@@ -1,4 +1,3 @@
-from typing import Optional
 from pathlib import Path
 import tempfile
 import subprocess
@@ -18,8 +17,8 @@ def create_api_router() -> APIRouter:
 
     @router.get("/api/diff")
     async def get_diff(
-        commit: Optional[str] = Query(None, description="Review changes for a specific commit"),
-        range: Optional[str] = Query(None, description="Review changes for a commit range"),
+        commit: str | None = Query(None, description="Review changes for a specific commit"),
+        range: str | None = Query(None, description="Review changes for a commit range"),
         mock: bool = Query(False, description="Return mock data for testing")
     ) -> GitDiff:
         """Get diff data for specific commits or ranges."""
@@ -36,7 +35,7 @@ def create_api_router() -> APIRouter:
 
     @router.get("/api/diff/live")
     async def get_live_diff(
-        since: Optional[str] = Query("HEAD", description="Review live changes since a commit"),
+        since: str | None = Query("HEAD", description="Review live changes since a commit"),
         mock: bool = Query(False, description="Return mock data for testing")
     ) -> GitDiff:
         """Get live diff data showing changes since a commit (defaults to HEAD)."""

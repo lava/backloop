@@ -2,7 +2,7 @@ import asyncio
 import threading
 import time
 import socket
-from typing import Dict, Optional, List, Union
+from typing import Dict, List, Union
 from datetime import datetime
 import uvicorn
 from fastapi import FastAPI
@@ -31,11 +31,11 @@ class ReviewManager:
     def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
         """Initialize the review manager."""
         self.active_reviews: Dict[str, ReviewSession] = {}
-        self._main_app: Optional[FastAPI] = None
-        self._web_server_port: Optional[int] = None
-        self._web_server_thread: Optional[threading.Thread] = None
+        self._main_app: FastAPI | None = None
+        self._web_server_port: int | None = None
+        self._web_server_thread: threading.Thread | None = None
         self._pending_comments: List[Comment] = []
-        self._comment_event: Optional[asyncio.Event] = None
+        self._comment_event: asyncio.Event | None = None
         self._review_approved: Dict[str, bool] = {}  # Track approval status per review
         self._event_loop = loop
         self.event_manager = EventManager()  # Add event manager
@@ -53,9 +53,9 @@ class ReviewManager:
         return port
     
     def create_review_session(self,
-                            commit: Optional[str] = None,
-                            range: Optional[str] = None,
-                            since: Optional[str] = None) -> ReviewSession:
+                            commit: str | None = None,
+                            range: str | None = None,
+                            since: str | None = None) -> ReviewSession:
         """Create a new review session and store it for dynamic routing."""
         # Create the review session
         review_session = ReviewSession(commit=commit, range=range, since=since)
@@ -65,11 +65,11 @@ class ReviewManager:
         
         return review_session
     
-    def get_review_session(self, review_id: str) -> Optional[ReviewSession]:
+    def get_review_session(self, review_id: str) -> ReviewSession | None:
         """Get a review session by ID."""
         return self.active_reviews.get(review_id)
     
-    def get_most_recent_review(self) -> Optional[ReviewSession]:
+    def get_most_recent_review(self) -> ReviewSession | None:
         """Get the most recently created review session."""
         if not self.active_reviews:
             return None
@@ -120,7 +120,7 @@ class ReviewManager:
             return review_session.diff
         
         @router.get("/review/{review_id}/api/comments")
-        async def get_review_comments(review_id: str = Path(...), file_path: Optional[str] = None) -> List[Comment]:
+        async def get_review_comments(review_id: str = Path(...), file_path: str | None = None) -> List[Comment]:
             """Get comments for a specific review session."""
             review_session = self.get_review_session(review_id)
             if not review_session:
@@ -229,7 +229,7 @@ class ReviewManager:
         
         @router.get("/api/events")
         async def get_events(
-            last_event_id: Optional[str] = Query(None, description="ID of the last event received"),
+            last_event_id: str | None = Query(None, description="ID of the last event received"),
             timeout: float = Query(30.0, description="Long-polling timeout in seconds", ge=0, le=60)
         ) -> SuccessResponse[dict]:
             """Long-polling endpoint for server-side events.
@@ -321,7 +321,7 @@ class ReviewManager:
         
         return port
     
-    def get_web_server_port(self) -> Optional[int]:
+    def get_web_server_port(self) -> int | None:
         """Get the current web server port, if running."""
         return self._web_server_port
     

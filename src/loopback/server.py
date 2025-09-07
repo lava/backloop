@@ -1,7 +1,6 @@
 import argparse
 import asyncio
 import uvicorn
-from typing import Optional
 from pathlib import Path
 from datetime import datetime
 from fastapi import FastAPI, Query, HTTPException
@@ -32,10 +31,10 @@ class ApprovalRequest(BaseModel):
     timestamp: str
 
 # Simple review session storage for standalone server
-current_review_session: Optional[ReviewSession] = None
+current_review_session: ReviewSession | None = None
 
 # Review manager will be created on startup
-review_manager: Optional[ReviewManager] = None
+review_manager: ReviewManager | None = None
 
 # Include the shared API router
 app.include_router(create_api_router())
