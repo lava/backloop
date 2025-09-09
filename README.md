@@ -1,4 +1,4 @@
-# Loopback
+# Backloop
 
 A web-based git diff viewer and review tool.
 
@@ -7,5 +7,5 @@ A web-based git diff viewer and review tool.
 To add the MCP server to Claude Code, run:
 
 ```bash
-claude mcp add local-review -- uvx run --from loopback loopback-mcp
+claude mcp add local-review -- uvx run --from backloop backloop-mcp
 ```

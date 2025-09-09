@@ -1,0 +1,93 @@
+/* Button styles */
+
+.btn {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: #1f883d;
+    color: white;
+    border-color: #1f883d;
+}
+
+.btn-primary:hover {
+    background: #1a7f37;
+    border-color: #1a7f37;
+}
+
+.btn-secondary {
+    background: #f6f8fa;
+    color: #24292f;
+    border-color: #d0d7de;
+}
+
+.btn-secondary:hover {
+    background: #eaeef2;
+    border-color: #d0d7de;
+}
+
+.approve-button {
+    background: #1f883d;
+    color: white;
+    border: 1px solid #1f883d;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background-color 0.2s;
+}
+
+.approve-button:hover {
+    background: #1a7f37;
+    border-color: #1a7f37;
+}
+
+.approve-button:disabled {
+    background: #8b949e;
+    border-color: #8b949e;
+    cursor: not-allowed;
+}
+
+.refresh-button {
+    background: #0969da;
+    color: white;
+    border: 1px solid #0969da;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background-color 0.2s;
+    margin-right: 8px;
+}
+
+.refresh-button:hover {
+    background: #0550ae;
+    border-color: #0550ae;
+}
+
+.refresh-button:disabled {
+    background: #8b949e;
+    border-color: #8b949e;
+    cursor: not-allowed;
+}
+
+.refresh-button.hidden {
+    display: none;
+}

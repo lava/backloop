@@ -1,5 +1,5 @@
 [project]
-name = "loopback"
+name = "backloop"
 version = "0.1.0"
 description = "A web-based git diff viewer and review tool with MCP server integration"
 readme = "README.md"
@@ -27,8 +27,8 @@ classifiers = [
 ]
 
 [project.scripts]
-server = "loopback.server:main"
-loopback-mcp = "loopback.mcp.server:main"
+server = "backloop.server:main"
+backloop-mcp = "backloop.mcp.server:main"
 
 [build-system]
 requires = ["hatchling"]

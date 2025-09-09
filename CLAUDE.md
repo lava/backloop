@@ -9,12 +9,12 @@ A web-based git diff viewer and review tool that provides an interface for revie
 
 ## Key Files
 
-- `src/reviewer/server.py` - Main FastAPI web server
-- `src/reviewer/mcp_server.py` - MCP server integration
-- `src/reviewer/review_manager.py` - Review session management
-- `src/reviewer/git_service.py` - Git operations and diff parsing
-- `src/reviewer/models.py` - Data models
-- `src/reviewer/api_router.py` - API endpoints
+- `src/backloop/server.py` - Main FastAPI web server
+- `src/backloop/mcp/server.py` - MCP server integration
+- `src/backloop/review_manager.py` - Review session management
+- `src/backloop/git_service.py` - Git operations and diff parsing
+- `src/backloop/models.py` - Data models
+- `src/backloop/api/router.py` - API endpoints
 
 # Python Style Guide
 
