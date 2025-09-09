@@ -28,7 +28,7 @@ classifiers = [
 
 [project.scripts]
 server = "loopback.server:main"
-loopback-mcp = "loopback.mcp_server:main"
+loopback-mcp = "loopback.mcp.server:main"
 
 [build-system]
 requires = ["hatchling"]

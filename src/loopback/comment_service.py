@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Dict, Tuple
 
 from loopback.models import Comment, CommentRequest, CommentStatus
-from loopback.state_dir import get_state_dir
+from loopback.utils.state_dir import get_state_dir
 
 
 class CommentService:

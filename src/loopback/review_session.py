@@ -4,7 +4,7 @@ import time
 from loopback.models import GitDiff
 from loopback.comment_service import CommentService
 from loopback.git_service import GitService
-from loopback.state_dir import get_state_dir
+from loopback.utils.state_dir import get_state_dir
 
 
 class ReviewSession:

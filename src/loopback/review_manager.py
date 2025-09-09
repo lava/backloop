@@ -10,13 +10,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from loopback.models import Comment, CommentRequest, GitDiff, ReviewApproved, CommentStatus
-from loopback.responses import SuccessResponse, CommentResponse
+from loopback.api.responses import SuccessResponse, CommentResponse
 from loopback.review_session import ReviewSession
-from loopback.settings import settings  
+from loopback.utils.settings import settings  
 from fastapi import HTTPException, Path, APIRouter, Query
 from fastapi.responses import FileResponse, RedirectResponse
 from pathlib import Path as PathLib
-from loopback.api_router import create_api_router
+from loopback.api.router import create_api_router
 from loopback.event_manager import EventManager, EventType
 from loopback.file_watcher import FileWatcher
 

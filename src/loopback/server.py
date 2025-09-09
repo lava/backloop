@@ -6,12 +6,13 @@ from datetime import datetime
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from loopback.models import GitDiff
 from loopback.review_session import ReviewSession
-from loopback.utils import get_random_port
-from loopback.api_router import create_api_router
+from loopback.utils.common import get_random_port
+from loopback.api.router import create_api_router
 from loopback.review_manager import ReviewManager
 
 app = FastAPI(title="Git Diff Viewer", version="0.1.0")
@@ -25,6 +26,7 @@ app.add_middleware(
 )
 
 BASE_DIR = Path(__file__).parent.parent.parent
+STATIC_DIR = Path(__file__).parent / "static"
 
 # Request models
 class ApprovalRequest(BaseModel):
@@ -35,6 +37,9 @@ current_review_session: ReviewSession | None = None
 
 # Review manager will be created on startup
 review_manager: ReviewManager | None = None
+
+# Mount static files
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # Include the shared API router
 app.include_router(create_api_router())
@@ -74,17 +79,17 @@ async def redirect_to_review() -> RedirectResponse:
 @app.get("/review")
 async def get_review_page() -> FileResponse:
     """Serve the review.html page."""
-    review_path = BASE_DIR / "review.html"
+    review_path = STATIC_DIR / "templates" / "review.html"
     if not review_path.exists():
-        raise HTTPException(status_code=404, detail="review.html not found")
+        raise HTTPException(status_code=404, detail="review.html template not found")
     return FileResponse(review_path)
 
 @app.get("/review/{review_id}/view")
 async def get_review_view(review_id: str) -> FileResponse:
     """Serve the review.html file for a specific review."""
-    review_path = BASE_DIR / "review.html"
+    review_path = STATIC_DIR / "templates" / "review.html"
     if not review_path.exists():
-        raise HTTPException(status_code=404, detail="review.html not found")
+        raise HTTPException(status_code=404, detail="review.html template not found")
     return FileResponse(review_path)
 
 @app.post("/review/{review_id}/approve")
