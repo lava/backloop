@@ -15,13 +15,13 @@ import time
 from pathlib import Path
 from typing import Optional
 
-# Add src to path to import loopback modules
+# Add src to path to import backloop modules
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from loopback.review_manager import ReviewManager
-from loopback.models import Comment, ReviewApproved
-from loopback.settings import settings
-from loopback.event_manager import EventType
+from backloop.review_manager import ReviewManager
+from backloop.models import Comment, ReviewApproved
+from backloop.utils.settings import settings
+from backloop.event_manager import EventType
 
 
 async def monitor_events(review_manager: ReviewManager, stop_event: asyncio.Event) -> None:

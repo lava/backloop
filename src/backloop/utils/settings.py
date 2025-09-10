@@ -1,4 +1,4 @@
-"""Configuration settings for the loopback application."""
+"""Configuration settings for the backloop application."""
 
 from pydantic_settings import BaseSettings
 

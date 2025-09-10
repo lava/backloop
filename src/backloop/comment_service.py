@@ -16,7 +16,7 @@ class CommentService:
         if storage_path:
             self.storage_path = Path(storage_path)
         else:
-            self.storage_path = get_state_dir() / "loopback_comments.json"
+            self.storage_path = get_state_dir() / "backloop_comments.json"
         self._comments: Dict[str, Comment] = self._load_comments()
         self._comment_queue: List[str] = []  # List of comment IDs in queue order
     
