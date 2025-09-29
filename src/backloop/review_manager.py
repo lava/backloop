@@ -77,9 +77,9 @@ class ReviewManager:
     def create_dynamic_router(self) -> APIRouter:
         """Create a dynamic router that handles all review paths."""
         router = APIRouter()
-        
-        # Get the project root directory
-        BASE_DIR = PathLib(__file__).parent.parent.parent
+
+        # Get the static directory
+        STATIC_DIR = PathLib(__file__).parent / "static"
         
         @router.get("/")
         async def redirect_to_latest_review() -> RedirectResponse:
@@ -105,9 +105,9 @@ class ReviewManager:
             if not review_session:
                 raise HTTPException(status_code=404, detail="Review not found")
             
-            review_path = BASE_DIR / "review.html"
+            review_path = STATIC_DIR / "templates" / "review.html"
             if not review_path.exists():
-                raise HTTPException(status_code=404, detail="review.html not found")
+                raise HTTPException(status_code=404, detail=f"review.html not found at {review_path}")
             return FileResponse(review_path)
         
         @router.get("/review/{review_id}/api/diff")
