@@ -170,17 +170,30 @@ export function renderFileTree(tree, container, depth = 0) {
 export function scrollToFile(filePath) {
     // Create a sanitized anchor ID from the file path
     const anchorId = 'file-' + filePath.replace(/[^a-zA-Z0-9]/g, '-');
-    
-    // Find and scroll to anchors in both panes
-    const diffPanes = [document.getElementById('old-pane'), document.getElementById('new-pane')];
-    
-    diffPanes.forEach(pane => {
-        const anchor = pane.querySelector(`#${anchorId}-${pane.id}`);
-        if (anchor) {
-            // Use scrollIntoView with instant behavior
-            anchor.scrollIntoView({ behavior: 'instant', block: 'start' });
-        }
-    });
+
+    // Find the file section in the old pane (we'll scroll both panes via sync)
+    const oldPane = document.getElementById('old-pane');
+    const oldContent = document.getElementById('old-content');
+
+    if (!oldPane || !oldContent) {
+        console.error('Diff panes not found for scrolling');
+        return;
+    }
+
+    // Find the file section
+    const fileSection = oldContent.querySelector(`#${anchorId}-old-pane`);
+
+    if (fileSection) {
+        // Calculate the position relative to the scrollable container
+        const containerTop = oldContent.offsetTop;
+        const elementTop = fileSection.offsetTop;
+        const scrollPosition = elementTop - containerTop;
+
+        // Scroll the pane (synchronized scrolling will handle the other pane)
+        oldPane.scrollTop = scrollPosition;
+    } else {
+        console.warn(`File section not found for: ${filePath} (anchor: ${anchorId})`);
+    }
 }
 
 // Setup click handler for line numbers to show comment forms
