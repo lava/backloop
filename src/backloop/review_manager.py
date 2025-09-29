@@ -19,6 +19,7 @@ from pathlib import Path as PathLib
 from backloop.api.router import create_api_router
 from backloop.event_manager import EventManager, EventType
 from backloop.file_watcher import FileWatcher
+from fastapi.staticfiles import StaticFiles
 
 # Request models
 class ApprovalRequest(BaseModel):
@@ -292,7 +293,11 @@ class ReviewManager:
             allow_methods=["*"],
             allow_headers=["*"],
         )
-        
+
+        # Mount static files
+        static_dir = PathLib(__file__).parent / "static"
+        self._main_app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
         # Include the shared API router
         api_router = create_api_router()
         self._main_app.include_router(api_router)
