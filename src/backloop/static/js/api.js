@@ -67,13 +67,30 @@ export async function saveFileEdit(filePath, patch) {
 }
 
 export async function fetchDiff(params) {
-    const queryParams = new URLSearchParams(params);
-    const response = await fetch(`/api/diff?${queryParams}`);
-    
-    if (!response.ok) {
-        throw new Error('Failed to fetch diff');
+    // Filter out null/undefined parameters and determine the endpoint
+    const cleanParams = {};
+    let endpoint = '/api/diff';
+
+    // If live mode, use the live endpoint and only pass 'since' and 'mock'
+    if (params.live === true || params.live === 'true') {
+        endpoint = '/api/diff/live';
+        if (params.since != null) cleanParams.since = params.since;
+        if (params.mock != null) cleanParams.mock = params.mock;
+    } else {
+        // For non-live mode, pass commit/range/mock
+        if (params.commit != null) cleanParams.commit = params.commit;
+        if (params.range != null) cleanParams.range = params.range;
+        if (params.mock != null) cleanParams.mock = params.mock;
     }
-    
+
+    const queryParams = new URLSearchParams(cleanParams);
+    const response = await fetch(`${endpoint}?${queryParams}`);
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Failed to fetch diff');
+    }
+
     return response.json();
 }
 
