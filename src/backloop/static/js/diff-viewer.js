@@ -251,6 +251,13 @@ export function setupLineClickHandlers() {
     console.log('Global click handler setup complete.');
 }
 
+// Sort files to match the file tree order (alphabetically by path)
+function sortFilesForDisplay(files) {
+    return [...files].sort((a, b) => {
+        return a.path.localeCompare(b.path);
+    });
+}
+
 // Render diff content for all files
 export function renderDiffContent(files) {
     const oldPane = document.getElementById('old-content');
@@ -265,8 +272,11 @@ export function renderDiffContent(files) {
     oldPane.innerHTML = '';
     newPane.innerHTML = '';
 
+    // Sort files to match file tree order
+    const sortedFiles = sortFilesForDisplay(files);
+
     // Render each file
-    files.forEach(file => {
+    sortedFiles.forEach(file => {
         renderFile(file, oldPane, newPane);
     });
 
