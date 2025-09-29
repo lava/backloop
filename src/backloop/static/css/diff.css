@@ -115,13 +115,54 @@
     overflow-x: auto;
 }
 
-.context-line {
+.diff-line.context {
     background: #fff;
 }
 
-.context-line .old-line-num,
-.context-line .new-line-num {
+.diff-line.context .old-line-num,
+.diff-line.context .new-line-num {
     color: #656d76;
+}
+
+.diff-line.addition {
+    background: #e6ffed;
+}
+
+.diff-line.addition .line-number {
+    background: #ccffd8;
+}
+
+.diff-line.addition .gutter-indicator {
+    color: #1a7f37;
+}
+
+.diff-line.deletion {
+    background: #ffeef0;
+}
+
+.diff-line.deletion .line-number {
+    background: #ffd7d5;
+}
+
+.diff-line.deletion .gutter-indicator {
+    color: #cf222e;
+}
+
+.diff-line:hover {
+    background: #f6f8fa;
+}
+
+.diff-line.addition:hover {
+    background: #d3f6db;
+}
+
+.diff-line.deletion:hover {
+    background: #ffd8da;
+}
+
+/* Legacy class names for compatibility */
+.context-line {
+    background: #fff;
 }
 
 .addition-line {
@@ -132,32 +173,12 @@
     background: #ccffd8;
 }
 
-.addition-line .gutter-indicator {
-    color: #1a7f37;
-}
-
 .deletion-line {
     background: #ffeef0;
 }
 
 .deletion-line .line-number {
     background: #ffd7d5;
-}
-
-.deletion-line .gutter-indicator {
-    color: #cf222e;
-}
-
-.diff-line:hover {
-    background: #f6f8fa;
-}
-
-.addition-line:hover {
-    background: #d3f6db;
-}
-
-.deletion-line:hover {
-    background: #ffd8da;
 }
 
 .empty-line {

@@ -389,6 +389,35 @@ function createDiffLine(line, side) {
     return lineDiv;
 }
 
+// Setup synchronized scrolling between diff panes
+export function setupSynchronizedScrolling() {
+    const oldPane = document.getElementById('old-pane');
+    const newPane = document.getElementById('new-pane');
+
+    if (!oldPane || !newPane) {
+        console.error('Diff panes not found for synchronized scrolling');
+        return;
+    }
+
+    let isScrolling = false;
+
+    const syncScroll = (source, target) => {
+        if (isScrolling) return;
+
+        isScrolling = true;
+        target.scrollTop = source.scrollTop;
+        target.scrollLeft = source.scrollLeft;
+
+        // Use requestAnimationFrame to reset the flag
+        requestAnimationFrame(() => {
+            isScrolling = false;
+        });
+    };
+
+    oldPane.addEventListener('scroll', () => syncScroll(oldPane, newPane));
+    newPane.addEventListener('scroll', () => syncScroll(newPane, oldPane));
+}
+
 // Initialize diff viewer when page loads
 export async function initializeDiffViewer() {
     // Parse query parameters to determine diff type
@@ -401,6 +430,9 @@ export async function initializeDiffViewer() {
 
     // Setup line click handlers
     setupLineClickHandlers();
+
+    // Setup synchronized scrolling
+    setupSynchronizedScrolling();
 
     // Load diff data
     try {
