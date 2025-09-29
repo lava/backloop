@@ -89,7 +89,7 @@ async def get_review_view(review_id: str) -> FileResponse:
     """Serve the review.html file for a specific review."""
     review_path = STATIC_DIR / "templates" / "review.html"
     if not review_path.exists():
-        raise HTTPException(status_code=404, detail="review.html template not found")
+        raise HTTPException(status_code=404, detail=f"review.html not found at {review_path}")
     return FileResponse(review_path)
 
 @app.post("/review/{review_id}/approve")
