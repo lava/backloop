@@ -105,13 +105,19 @@ export async function loadComments(reviewId) {
 }
 
 export async function approveReview(reviewId) {
-    const response = await fetch(`/review/${reviewId}/api/approve`, {
-        method: 'POST'
+    const response = await fetch(`/review/${reviewId}/approve`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            timestamp: new Date().toISOString()
+        })
     });
-    
+
     if (!response.ok) {
         throw new Error('Failed to approve review');
     }
-    
+
     return response.json();
 }

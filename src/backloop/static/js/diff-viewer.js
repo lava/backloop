@@ -238,6 +238,157 @@ export function setupLineClickHandlers() {
     console.log('Global click handler setup complete.');
 }
 
+// Render diff content for all files
+export function renderDiffContent(files) {
+    const oldPane = document.getElementById('old-content');
+    const newPane = document.getElementById('new-content');
+
+    if (!oldPane || !newPane) {
+        console.error('Diff panes not found');
+        return;
+    }
+
+    // Clear existing content
+    oldPane.innerHTML = '';
+    newPane.innerHTML = '';
+
+    // Render each file
+    files.forEach(file => {
+        renderFile(file, oldPane, newPane);
+    });
+
+    // Update file count
+    const fileCountEl = document.getElementById('files-count');
+    if (fileCountEl) {
+        fileCountEl.textContent = files.length;
+    }
+}
+
+// Render a single file's diff
+function renderFile(file, oldPane, newPane) {
+    const anchorId = 'file-' + file.path.replace(/[^a-zA-Z0-9]/g, '-');
+
+    // Create file section for old pane
+    const oldFileSection = createFileSection(file, 'old', anchorId);
+    oldPane.appendChild(oldFileSection);
+
+    // Create file section for new pane
+    const newFileSection = createFileSection(file, 'new', anchorId);
+    newPane.appendChild(newFileSection);
+
+    // Render chunks
+    if (file.is_binary) {
+        // Handle binary files
+        const binaryMsg = '<div class="binary-message">Binary file</div>';
+        oldFileSection.querySelector('.file-content').innerHTML = binaryMsg;
+        newFileSection.querySelector('.file-content').innerHTML = binaryMsg;
+    } else {
+        // Render diff chunks
+        file.chunks.forEach(chunk => {
+            renderChunk(chunk, oldFileSection, newFileSection);
+        });
+    }
+}
+
+// Create file section header
+function createFileSection(file, side, anchorId) {
+    const section = document.createElement('div');
+    section.className = 'file-section';
+    section.id = `${anchorId}-${side}-pane`;
+
+    const header = document.createElement('div');
+    header.className = 'file-header';
+
+    const pathSpan = document.createElement('span');
+    pathSpan.className = 'file-path';
+    pathSpan.textContent = file.path;
+
+    header.appendChild(pathSpan);
+
+    // Add status badge
+    if (file.status) {
+        const badge = document.createElement('span');
+        badge.className = `status-badge status-${file.status}`;
+        badge.textContent = file.status.toUpperCase();
+        header.appendChild(badge);
+    }
+
+    const content = document.createElement('div');
+    content.className = 'file-content';
+
+    section.appendChild(header);
+    section.appendChild(content);
+
+    return section;
+}
+
+// Render a diff chunk
+function renderChunk(chunk, oldSection, newSection) {
+    const oldContent = oldSection.querySelector('.file-content');
+    const newContent = newSection.querySelector('.file-content');
+
+    chunk.lines.forEach(line => {
+        const oldLine = createDiffLine(line, 'old');
+        const newLine = createDiffLine(line, 'new');
+
+        oldContent.appendChild(oldLine);
+        newContent.appendChild(newLine);
+    });
+}
+
+// Create a diff line element
+function createDiffLine(line, side) {
+    const lineDiv = document.createElement('div');
+    lineDiv.className = 'diff-line';
+
+    // Determine line type class
+    switch (line.type) {
+        case 'addition':
+            lineDiv.classList.add('addition');
+            break;
+        case 'deletion':
+            lineDiv.classList.add('deletion');
+            break;
+        case 'context':
+            lineDiv.classList.add('context');
+            break;
+    }
+
+    // Create line number section
+    const lineNumber = document.createElement('div');
+    lineNumber.className = 'line-number';
+
+    const oldNum = document.createElement('span');
+    oldNum.className = 'old-line-num';
+    oldNum.textContent = line.oldNum || '';
+
+    const newNum = document.createElement('span');
+    newNum.className = 'new-line-num';
+    newNum.textContent = line.newNum || '';
+
+    lineNumber.appendChild(oldNum);
+    lineNumber.appendChild(newNum);
+
+    // Create content section
+    const content = document.createElement('div');
+    content.className = 'line-content';
+    content.textContent = line.content;
+
+    // Handle empty lines based on side and type
+    if (side === 'old' && line.type === 'addition') {
+        lineDiv.classList.add('empty-line');
+        content.innerHTML = '&nbsp;';
+    } else if (side === 'new' && line.type === 'deletion') {
+        lineDiv.classList.add('empty-line');
+        content.innerHTML = '&nbsp;';
+    }
+
+    lineDiv.appendChild(lineNumber);
+    lineDiv.appendChild(content);
+
+    return lineDiv;
+}
+
 // Initialize diff viewer when page loads
 export async function initializeDiffViewer() {
     // Parse query parameters to determine diff type
@@ -250,12 +401,12 @@ export async function initializeDiffViewer() {
 
     // Setup line click handlers
     setupLineClickHandlers();
-    
+
     // Load diff data
     try {
         const params = { commit, range, since, live, mock };
         const diffData = await api.fetchDiff(params);
-        
+
         if (diffData && diffData.files) {
             // Build and render file tree
             const fileTree = buildFileTree(diffData.files);
@@ -263,6 +414,9 @@ export async function initializeDiffViewer() {
             if (fileTreeContainer) {
                 renderFileTree(fileTree, fileTreeContainer);
             }
+
+            // Render diff content
+            renderDiffContent(diffData.files);
         }
     } catch (error) {
         console.error('Error loading diff data:', error);
