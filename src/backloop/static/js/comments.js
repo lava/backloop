@@ -1,13 +1,14 @@
 // Comment management module
 
 import * as api from './api.js';
+import { openFileEditor } from './file-editor.js';
 
 let commentIdCounter = 1;
 let commentsData = {};
 
 export function showCommentForm(filePath, lineNumber, side, lineElement) {
     console.log('showCommentForm called:', filePath, lineNumber, side);
-    
+
     // Check if form already exists for this line
     const existingForm = lineElement.parentElement.querySelector('.comment-form');
     if (existingForm) {
@@ -17,11 +18,18 @@ export function showCommentForm(filePath, lineNumber, side, lineElement) {
 
     const commentForm = document.createElement('div');
     commentForm.className = 'comment-form';
+
+    // Add "Edit directly" button for "new" side (right column)
+    const editDirectlyButton = side === 'new'
+        ? '<button class="btn btn-tertiary" data-action="edit-directly" style="margin-left: auto;">Edit directly</button>'
+        : '';
+
     commentForm.innerHTML = `
         <textarea placeholder="Leave a comment..."></textarea>
         <div class="comment-form-buttons">
             <button class="btn btn-secondary" data-action="cancel">Cancel</button>
             <button class="btn btn-primary" data-action="submit">Comment</button>
+            ${editDirectlyButton}
         </div>
     `;
 
@@ -34,9 +42,14 @@ export function showCommentForm(filePath, lineNumber, side, lineElement) {
     // Add event listeners
     const cancelBtn = commentForm.querySelector('[data-action="cancel"]');
     const submitBtn = commentForm.querySelector('[data-action="submit"]');
-    
+    const editDirectlyBtn = commentForm.querySelector('[data-action="edit-directly"]');
+
     cancelBtn.addEventListener('click', () => commentForm.remove());
     submitBtn.addEventListener('click', () => submitComment(submitBtn));
+
+    if (editDirectlyBtn) {
+        editDirectlyBtn.addEventListener('click', () => openEditDirectly(filePath, lineNumber, commentForm));
+    }
 
     // Insert after the line element
     lineElement.parentElement.insertBefore(commentForm, lineElement.nextSibling);
@@ -248,6 +261,17 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// Open file editor for direct editing
+export async function openEditDirectly(filePath, lineNumber, commentForm) {
+    // Close the comment form
+    if (commentForm) {
+        commentForm.remove();
+    }
+
+    // Open the file editor at the specified line
+    await openFileEditor(filePath, parseInt(lineNumber));
 }
 
 export { commentsData };

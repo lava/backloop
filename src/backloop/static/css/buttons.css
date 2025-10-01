@@ -35,6 +35,17 @@
     border-color: #d0d7de;
 }
 
+.btn-tertiary {
+    background: #0969da;
+    color: white;
+    border-color: #0969da;
+}
+
+.btn-tertiary:hover {
+    background: #0550ae;
+    border-color: #0550ae;
+}
+
 .approve-button {
     background: #1f883d;
     color: white;
