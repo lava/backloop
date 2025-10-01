@@ -541,6 +541,19 @@ export async function approveReview() {
         }
         
         console.log('Review approved successfully');
+
+        // Try to close the tab after a brief delay to allow UI update
+        setTimeout(() => {
+            // Try to close - this only works if tab was opened via window.open()
+            window.close();
+
+            // If close didn't work, update button to indicate user can close manually
+            setTimeout(() => {
+                if (approveButton && !document.hidden) {
+                    approveButton.textContent = 'Review Approved - You can close this tab';
+                }
+            }, 100);
+        }, 500);
     } catch (error) {
         console.error('Error approving review:', error);
         alert('Failed to approve review: ' + error.message);
