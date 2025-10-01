@@ -55,7 +55,7 @@ export function renderFileTree(tree, container, depth = 0) {
         
         if (item.type === 'file') {
             itemElement.className = 'file-tree-item';
-            itemElement.style.paddingLeft = `${16 + depth * 20}px`;
+            itemElement.style.paddingLeft = `${16 + depth * 12}px`;
             
             // Determine file status indicator and styling
             let statusIndicator = '';
@@ -130,7 +130,7 @@ export function renderFileTree(tree, container, depth = 0) {
             
         } else {
             itemElement.className = 'file-tree-item folder-item';
-            itemElement.style.paddingLeft = `${16 + depth * 20}px`;
+            itemElement.style.paddingLeft = `${16 + depth * 12}px`;
             const expanded = item.expanded ? '' : 'collapsed';
             itemElement.innerHTML = `
                 <span class="folder-toggle">▶</span>
