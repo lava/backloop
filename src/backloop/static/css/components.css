@@ -204,7 +204,7 @@
     margin-left: 8px;
 }
 
-.collapsed .folder-children {
+.folder-children.collapsed {
     display: none;
 }
 
@@ -216,7 +216,7 @@
     color: #656d76;
 }
 
-.collapsed .folder-toggle {
+.folder-item.collapsed .folder-toggle {
     transform: rotate(0deg);
 }
 
