@@ -30,6 +30,21 @@ body {
     font-weight: 600;
 }
 
+.connection-status {
+    font-size: 14px;
+    font-weight: normal;
+    color: #d73a49;
+}
+
+.connection-status.connected {
+    color: #28a745;
+}
+
+.connection-status.disconnected,
+.connection-status.error {
+    color: #d73a49;
+}
+
 /* Main layout */
 .main-container {
     display: flex;

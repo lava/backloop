@@ -5,14 +5,14 @@ import socket
 from typing import Dict, List, Union
 from datetime import datetime
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from backloop.models import Comment, CommentRequest, GitDiff, ReviewApproved, CommentStatus
 from backloop.api.responses import SuccessResponse, CommentResponse
 from backloop.review_session import ReviewSession
-from backloop.utils.settings import settings  
+from backloop.utils.settings import settings
 from fastapi import HTTPException, Path, APIRouter, Query
 from fastapi.responses import FileResponse, RedirectResponse
 from pathlib import Path as PathLib
@@ -231,10 +231,10 @@ class ReviewManager:
             timeout: float = Query(30.0, description="Long-polling timeout in seconds", ge=0, le=60)
         ) -> SuccessResponse[dict]:
             """Long-polling endpoint for server-side events.
-            
+
             Returns any server-side changes since the last event ID.
             Will wait up to 'timeout' seconds for new events before returning empty.
-            
+
             Event types:
             - comment_dequeued: A comment was removed from the review queue
             - file_changed: A file in the repository was modified (future)
@@ -243,14 +243,14 @@ class ReviewManager:
             """
             # Subscribe to events
             subscriber = await self.event_manager.subscribe(last_event_id)
-            
+
             try:
                 # Wait for events
                 events = await self.event_manager.wait_for_events(subscriber, timeout=timeout)
-                
+
                 # Convert events to dictionaries
                 event_dicts = [event.to_dict() for event in events]
-                
+
                 return SuccessResponse(
                     data={
                         "events": event_dicts,
@@ -261,7 +261,30 @@ class ReviewManager:
             finally:
                 # Unsubscribe when done
                 await self.event_manager.unsubscribe(subscriber.id)
-        
+
+        @router.websocket("/ws")
+        async def websocket_endpoint(websocket: WebSocket) -> None:
+            """WebSocket endpoint for real-time updates."""
+            await websocket.accept()
+
+            # Subscribe to events
+            subscriber = await self.event_manager.subscribe(last_event_id=None)
+
+            try:
+                while True:
+                    # Wait for events with a timeout
+                    events = await self.event_manager.wait_for_events(subscriber, timeout=30.0)
+
+                    # Send events to client
+                    for event in events:
+                        await websocket.send_json(event.to_dict())
+
+            except WebSocketDisconnect:
+                pass
+            finally:
+                # Unsubscribe when done
+                await self.event_manager.unsubscribe(subscriber.id)
+
         return router
     
     def remove_review_session(self, review_id: str) -> bool:
