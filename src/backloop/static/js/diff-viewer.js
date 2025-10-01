@@ -538,7 +538,6 @@ export async function approveReview() {
         if (approveButton) {
             approveButton.textContent = 'Review Approved';
             approveButton.disabled = true;
-            approveButton.style.backgroundColor = '#1a7f37';
         }
         
         console.log('Review approved successfully');

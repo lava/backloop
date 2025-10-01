@@ -59,6 +59,7 @@
     background: #8b949e;
     border-color: #8b949e;
     cursor: not-allowed;
+    opacity: 0.6;
 }
 
 .refresh-button {
