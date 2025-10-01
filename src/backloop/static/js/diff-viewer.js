@@ -3,6 +3,10 @@
 import * as api from './api.js';
 import { showCommentForm } from './comments.js';
 
+// File tree indentation constants
+const FILE_TREE_BASE_PADDING = 16;
+const FILE_TREE_INDENT_PER_LEVEL = 8;
+
 // Build hierarchical file tree structure
 export function buildFileTree(files) {
     const tree = {};
@@ -55,7 +59,7 @@ export function renderFileTree(tree, container, depth = 0) {
         
         if (item.type === 'file') {
             itemElement.className = 'file-tree-item';
-            itemElement.style.paddingLeft = `${16 + depth * 12}px`;
+            itemElement.style.paddingLeft = `${FILE_TREE_BASE_PADDING + depth * FILE_TREE_INDENT_PER_LEVEL}px`;
             
             // Determine file status indicator and styling
             let statusIndicator = '';
@@ -130,7 +134,7 @@ export function renderFileTree(tree, container, depth = 0) {
             
         } else {
             itemElement.className = 'file-tree-item folder-item';
-            itemElement.style.paddingLeft = `${16 + depth * 12}px`;
+            itemElement.style.paddingLeft = `${FILE_TREE_BASE_PADDING + depth * FILE_TREE_INDENT_PER_LEVEL}px`;
             const expanded = item.expanded ? '' : 'collapsed';
             itemElement.innerHTML = `
                 <span class="folder-toggle">▶</span>
