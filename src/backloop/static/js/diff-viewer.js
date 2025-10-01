@@ -312,7 +312,7 @@ function renderFile(file, oldPane, newPane) {
     } else {
         // Render diff chunks
         file.chunks.forEach(chunk => {
-            renderChunk(chunk, oldFileSection, newFileSection);
+            renderChunk(chunk, oldFileSection, newFileSection, file.path);
         });
     }
 }
@@ -350,7 +350,7 @@ function createFileSection(file, side, anchorId) {
 }
 
 // Render a diff chunk
-function renderChunk(chunk, oldSection, newSection) {
+function renderChunk(chunk, oldSection, newSection, filePath) {
     const oldContent = oldSection.querySelector('.file-content');
     const newContent = newSection.querySelector('.file-content');
 
@@ -380,8 +380,8 @@ function renderChunk(chunk, oldSection, newSection) {
     }
 
     chunk.lines.forEach(line => {
-        const oldLine = createDiffLine(line, 'old');
-        const newLine = createDiffLine(line, 'new');
+        const oldLine = createDiffLine(line, 'old', filePath);
+        const newLine = createDiffLine(line, 'new', filePath);
 
         oldContent.appendChild(oldLine);
         newContent.appendChild(newLine);
@@ -397,9 +397,17 @@ function createGapIndicator() {
 }
 
 // Create a diff line element
-function createDiffLine(line, side) {
+function createDiffLine(line, side, filePath) {
     const lineDiv = document.createElement('div');
     lineDiv.className = 'diff-line';
+
+    // Generate unique ID for this line based on file path, line number, and side
+    const lineNum = side === 'old' ? line.oldNum : line.newNum;
+    if (lineNum && filePath) {
+        // Sanitize file path for use in ID
+        const sanitizedPath = filePath.replace(/[^a-zA-Z0-9]/g, '-');
+        lineDiv.id = `line-${sanitizedPath}-${lineNum}-${side}`;
+    }
 
     // Determine line type class
     switch (line.type) {
