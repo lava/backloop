@@ -101,15 +101,19 @@ export function renderFileTree(tree, container, depth = 0) {
                 `;
             }
             
-            const fileName = file.status === 'renamed' 
+            const fileName = file.status === 'renamed'
                 ? `${statusIndicator}${file.oldPath} → ${key}`
                 : `${statusIndicator}${key}`;
-            
+
+            const tooltipTitle = file.status === 'renamed'
+                ? `Renamed from: ${file.oldPath}`
+                : file.path;
+
             itemElement.innerHTML = `
                 <svg class="file-icon" viewBox="0 0 16 16" fill="currentColor">
                     <path d="M2 1.75A1.75 1.75 0 013.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0113.25 16h-9.5A1.75 1.75 0 012 14.25V1.75zm1.75-.25a.25.25 0 00-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 00.25-.25V6h-2.75A1.75 1.75 0 019 4.25V1.5H3.75z"/>
                 </svg>
-                <span class="file-name" title="${file.status === 'renamed' ? 'Renamed from: ' + file.oldPath : ''}">${fileName}</span>
+                <span class="file-name" title="${tooltipTitle}">${fileName}</span>
                 <span class="file-changes">${changesDisplay}</span>
             `;
             
@@ -350,6 +354,31 @@ function renderChunk(chunk, oldSection, newSection) {
     const oldContent = oldSection.querySelector('.file-content');
     const newContent = newSection.querySelector('.file-content');
 
+    // Check if there's a gap before this chunk
+    const existingLines = oldContent.querySelectorAll('.diff-line:not(.empty-line)');
+    if (existingLines.length > 0) {
+        const lastLine = existingLines[existingLines.length - 1];
+        const lastOldNum = parseInt(lastLine.querySelector('.old-line-num')?.textContent || '0');
+        const lastNewNum = parseInt(lastLine.querySelector('.new-line-num')?.textContent || '0');
+
+        // Get first line numbers of this chunk
+        const firstLine = chunk.lines[0];
+        const firstOldNum = firstLine.oldNum ? parseInt(firstLine.oldNum) : null;
+        const firstNewNum = firstLine.newNum ? parseInt(firstLine.newNum) : null;
+
+        // Check if there's a gap (more than 1 line difference)
+        const oldGap = firstOldNum && lastOldNum && (firstOldNum - lastOldNum > 1);
+        const newGap = firstNewNum && lastNewNum && (firstNewNum - lastNewNum > 1);
+
+        if (oldGap || newGap) {
+            // Insert gap indicator
+            const oldGapLine = createGapIndicator();
+            const newGapLine = createGapIndicator();
+            oldContent.appendChild(oldGapLine);
+            newContent.appendChild(newGapLine);
+        }
+    }
+
     chunk.lines.forEach(line => {
         const oldLine = createDiffLine(line, 'old');
         const newLine = createDiffLine(line, 'new');
@@ -357,6 +386,14 @@ function renderChunk(chunk, oldSection, newSection) {
         oldContent.appendChild(oldLine);
         newContent.appendChild(newLine);
     });
+}
+
+// Create a gap indicator element
+function createGapIndicator() {
+    const gapDiv = document.createElement('div');
+    gapDiv.className = 'chunk-gap';
+    gapDiv.innerHTML = '<div class="gap-line"></div>';
+    return gapDiv;
 }
 
 // Create a diff line element
