@@ -1,6 +1,7 @@
 // File editing functionality
 
 import * as api from './api.js';
+import { markFileAsEdited } from './main.js';
 
 export async function openFileEditor(filePath, lineNumber = null) {
     try {
@@ -96,25 +97,28 @@ export function closeEditModal() {
 export async function saveFileEdit() {
     const modal = document.querySelector('.edit-modal');
     if (!modal) return;
-    
+
     const textarea = modal.querySelector('.edit-textarea');
     const filePath = textarea.dataset.filePath;
     const originalContent = textarea.dataset.originalContent;
     const newContent = textarea.value;
-    
+
     try {
         // Create a unified diff patch
         const patch = createUnifiedDiff(originalContent, newContent, filePath);
-        
+
         const result = await api.saveFileEdit(filePath, patch);
         console.log('File saved successfully:', result);
-        
+
+        // Mark this file as recently edited so it auto-refreshes on file_changed event
+        markFileAsEdited(filePath);
+
         // Close modal
         closeEditModal();
-        
-        // Refresh the diff view to show the new changes
-        window.location.reload();
-        
+
+        // Wait for file watcher to detect the change and auto-refresh
+        // (No page reload needed - the file_changed event will trigger auto-refresh)
+
     } catch (error) {
         console.error('Error saving file:', error);
         alert('Failed to save file: ' + error.message);

@@ -1,10 +1,25 @@
 // Main entry point for the review application
 
-import { initializeDiffViewer, approveReview } from './diff-viewer.js';
+import { initializeDiffViewer, approveReview, showRefreshButton, refreshFile } from './diff-viewer.js';
 import { loadAndDisplayComments } from './comments.js';
 import { openFileEditor, closeEditModal, saveFileEdit } from './file-editor.js';
 import { initializeWebSocket, onEvent } from './websocket-client.js';
 import * as api from './api.js';
+
+// Track files that were recently edited for auto-refresh
+const recentlyEditedFiles = new Set();
+
+export function markFileAsEdited(filePath) {
+    recentlyEditedFiles.add(filePath);
+}
+
+function wasRecentlyEdited(filePath) {
+    return recentlyEditedFiles.has(filePath);
+}
+
+function clearRecentlyEdited(filePath) {
+    recentlyEditedFiles.delete(filePath);
+}
 
 // Initialize the application when DOM is loaded
 document.addEventListener('DOMContentLoaded', async () => {
@@ -89,6 +104,42 @@ function setupWebSocketHandlers() {
     onEvent('review_approved', (event) => {
         console.log('Review approved event received:', event);
         // Could show a notification or update UI
+    });
+
+    // Handle file changed events
+    onEvent('file_changed', async (event) => {
+        console.log('File changed event received:', event);
+        const filePath = event.data.file_path;
+
+        let relativePath = filePath;
+        let fileFound = false;
+
+        if (filePath.includes('/')) {
+            const parts = filePath.split('/');
+            for (let i = parts.length - 1; i >= 0; i--) {
+                const testPath = parts.slice(i).join('/');
+                const anchorId = 'file-' + testPath.replace(/[^a-zA-Z0-9]/g, '-');
+                if (document.getElementById(`${anchorId}-new-pane`)) {
+                    relativePath = testPath;
+                    fileFound = true;
+                    break;
+                }
+            }
+        }
+
+        if (!fileFound) {
+            console.log('File not found in current diff, refreshing entire view:', relativePath);
+            window.location.reload();
+            return;
+        }
+
+        if (wasRecentlyEdited(relativePath)) {
+            console.log('Auto-refreshing recently edited file:', relativePath);
+            clearRecentlyEdited(relativePath);
+            await refreshFile(relativePath);
+        } else {
+            showRefreshButton(relativePath);
+        }
     });
 }
 

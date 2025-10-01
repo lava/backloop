@@ -532,14 +532,14 @@ export async function approveReview() {
     try {
         const reviewId = await api.getReviewId();
         await api.approveReview(reviewId);
-        
+
         // Update UI to show approved state
         const approveButton = document.getElementById('approve-review-btn');
         if (approveButton) {
             approveButton.textContent = 'Review Approved';
             approveButton.disabled = true;
         }
-        
+
         console.log('Review approved successfully');
 
         // Try to close the tab after a brief delay to allow UI update
@@ -557,5 +557,114 @@ export async function approveReview() {
     } catch (error) {
         console.error('Error approving review:', error);
         alert('Failed to approve review: ' + error.message);
+    }
+}
+
+export function showRefreshButton(filePath) {
+    const anchorId = 'file-' + filePath.replace(/[^a-zA-Z0-9]/g, '-');
+    const newFileSection = document.getElementById(`${anchorId}-new-pane`);
+
+    if (!newFileSection) {
+        console.warn(`File section not found for: ${filePath}`);
+        return;
+    }
+
+    const header = newFileSection.querySelector('.file-header');
+    if (!header) {
+        return;
+    }
+
+    if (header.querySelector('.refresh-button')) {
+        return;
+    }
+
+    const refreshButton = document.createElement('button');
+    refreshButton.className = 'refresh-button';
+    refreshButton.textContent = '↻ Refresh File';
+    refreshButton.title = 'This file has changed on disk. Click to reload.';
+    refreshButton.onclick = () => refreshFile(filePath);
+
+    const statusBadge = header.querySelector('.status-badge');
+    if (statusBadge) {
+        header.insertBefore(refreshButton, statusBadge);
+    } else {
+        header.appendChild(refreshButton);
+    }
+}
+
+export async function refreshFile(filePath) {
+    console.log('Refreshing file:', filePath);
+
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const commit = urlParams.get('commit');
+        const range = urlParams.get('range');
+        const since = urlParams.get('since');
+        const live = urlParams.get('live') === 'true';
+        const mock = urlParams.get('mock') === 'true';
+
+        const params = { commit, range, since, live, mock };
+        const diffData = await api.fetchDiff(params);
+
+        if (!diffData || !diffData.files) {
+            console.error('Failed to fetch updated diff');
+            return;
+        }
+
+        const updatedFile = diffData.files.find(f => f.path === filePath);
+        if (!updatedFile) {
+            console.warn(`File ${filePath} not found in updated diff`);
+            return;
+        }
+
+        const anchorId = 'file-' + filePath.replace(/[^a-zA-Z0-9]/g, '-');
+        const oldFileSection = document.getElementById(`${anchorId}-old-pane`);
+        const newFileSection = document.getElementById(`${anchorId}-new-pane`);
+
+        if (!oldFileSection || !newFileSection) {
+            console.error('File sections not found for re-rendering');
+            return;
+        }
+
+        const oldContent = oldFileSection.querySelector('.file-content');
+        const newContent = newFileSection.querySelector('.file-content');
+
+        if (oldContent && newContent) {
+            oldContent.innerHTML = '';
+            newContent.innerHTML = '';
+
+            if (updatedFile.is_binary) {
+                const binaryMsg = '<div class="binary-message">Binary file</div>';
+                oldContent.innerHTML = binaryMsg;
+                newContent.innerHTML = binaryMsg;
+            } else {
+                updatedFile.chunks.forEach(chunk => {
+                    renderChunk(chunk, oldFileSection, newFileSection, updatedFile.path);
+                });
+            }
+
+            updateFileHeaderStats(newFileSection, updatedFile);
+
+            const refreshButton = newFileSection.querySelector('.refresh-button');
+            if (refreshButton) {
+                refreshButton.remove();
+            }
+
+            console.log('File refreshed successfully:', filePath);
+        }
+    } catch (error) {
+        console.error('Error refreshing file:', error);
+        alert('Failed to refresh file: ' + error.message);
+    }
+}
+
+function updateFileHeaderStats(fileSection, file) {
+    const header = fileSection.querySelector('.file-header');
+    if (!header) return;
+
+    const existingBadge = header.querySelector('.status-badge');
+    if (existingBadge && file.status) {
+        existingBadge.className = `status-badge status-${file.status}`;
+        existingBadge.textContent = file.status.toUpperCase();
     }
 }

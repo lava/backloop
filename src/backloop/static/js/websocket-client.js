@@ -78,7 +78,7 @@ function updateConnectionStatus(status) {
 }
 
 function handleEvent(event) {
-    const eventType = event.event_type;
+    const eventType = event.type;
 
     // Call registered handlers for this event type
     if (eventHandlers[eventType]) {
