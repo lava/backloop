@@ -18,7 +18,7 @@ class CommentService:
         else:
             self.storage_path = get_state_dir() / "backloop_comments.json"
         self._comments: Dict[str, Comment] = self._load_comments()
-        self._comment_queue: List[str] = []  # List of comment IDs in queue order
+        self._comment_queue: List[str] = self._rebuild_queue()  # Rebuild queue from loaded comments
     
     def add_comment(self, request: CommentRequest) -> Tuple[Comment, int]:
         """Add a new comment and return it with its queue position."""
@@ -90,6 +90,8 @@ class CommentService:
         comment = self._comments.get(comment_id)
         if comment:
             comment.status = status
+            if status == CommentStatus.RESOLVED:
+                comment.queue_position = None
             self._save_comments()
         return comment
     
@@ -109,6 +111,16 @@ class CommentService:
             comment = self._comments.get(comment_id)
             if comment:
                 comment.queue_position = position + 1
+
+    def _rebuild_queue(self) -> List[str]:
+        """Rebuild the queue from loaded comments that are not resolved."""
+        queued_comments = [
+            (comment.id, comment.queue_position or 0)
+            for comment in self._comments.values()
+            if comment.status != CommentStatus.RESOLVED and comment.queue_position is not None
+        ]
+        queued_comments.sort(key=lambda x: x[1])
+        return [comment_id for comment_id, _ in queued_comments]
     
     def _load_comments(self) -> Dict[str, Comment]:
         """Load comments from storage."""

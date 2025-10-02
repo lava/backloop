@@ -80,9 +80,9 @@ export async function submitComment(buttonElement) {
             author: 'Reviewer'
         });
         
-        const comment = result.comment;
-        const queuePosition = result.queue_position;
-        
+        const comment = result.data.comment;
+        const queuePosition = result.data.queue_position;
+
         // Add queue position to comment for display
         comment.queuePosition = queuePosition;
         
@@ -203,10 +203,6 @@ export function displayCommentWithQueue(comment, lineNumber, side, lineElement) 
 }
 
 export async function deleteComment(commentId, buttonElement) {
-    if (!confirm('Are you sure you want to delete this comment?')) {
-        return;
-    }
-    
     try {
         // Make API call to delete comment
         await api.deleteComment(commentId);
@@ -235,21 +231,35 @@ export async function deleteComment(commentId, buttonElement) {
 export async function loadAndDisplayComments(reviewId) {
     try {
         const comments = await api.loadComments(reviewId);
-        
+
         // Group comments by location
         comments.forEach(comment => {
             const key = `${comment.file_path}:${comment.line_number}:${comment.side}`;
             if (!commentsData[key]) {
                 commentsData[key] = [];
             }
+            // Convert queue_position to queuePosition for consistency
+            if (comment.queue_position !== undefined) {
+                comment.queuePosition = comment.queue_position;
+            }
             commentsData[key].push(comment);
         });
-        
+
         // Display all comments
         for (const [key, locationComments] of Object.entries(commentsData)) {
             const [filePath, lineNumber, side] = key.split(':');
-            // Find the corresponding line element and display comments
-            // This would need to be called after the diff is rendered
+
+            // Sanitize file path same way as diff-viewer.js
+            const sanitizedPath = filePath.replace(/[^a-zA-Z0-9]/g, '-');
+            const lineElementId = `line-${sanitizedPath}-${lineNumber}-${side}`;
+            const lineElement = document.getElementById(lineElementId);
+
+            if (lineElement) {
+                // Display each comment for this location
+                for (const comment of locationComments) {
+                    displayCommentWithQueue(comment, parseInt(lineNumber), side, lineElement);
+                }
+            }
         }
     } catch (error) {
         console.error('Error loading comments:', error);
