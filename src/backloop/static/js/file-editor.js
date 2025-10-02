@@ -19,14 +19,18 @@ export function showEditModal(filePath, content, jumpToLine = null) {
     if (existingModal) {
         existingModal.remove();
     }
-    
+
     const modal = document.createElement('div');
     modal.className = 'edit-modal';
-    
+
     // Generate line numbers
     const lines = content.split('\n');
-    const lineNumbers = lines.map((_, i) => i + 1).join('\n');
-    
+    const lineNumbersHTML = lines.map((_, i) => {
+        const lineNum = i + 1;
+        const isHighlighted = jumpToLine && lineNum === jumpToLine;
+        return `<div class="${isHighlighted ? 'highlighted-line' : ''}">${lineNum}</div>`;
+    }).join('');
+
     modal.innerHTML = `
         <div class="edit-modal-content">
             <div class="edit-modal-header">
@@ -34,8 +38,8 @@ export function showEditModal(filePath, content, jumpToLine = null) {
                 <button class="edit-modal-close">&times;</button>
             </div>
             <div class="edit-modal-body">
-                <div class="edit-line-numbers">${lineNumbers}</div>
-                <textarea class="edit-textarea" data-file-path="${escapeHtml(filePath)}" data-original-content="${escapeHtml(content)}">${escapeHtml(content)}</textarea>
+                <div class="edit-line-numbers">${lineNumbersHTML}</div>
+                <textarea class="edit-textarea" spellcheck="false" data-file-path="${escapeHtml(filePath)}" data-original-content="${escapeHtml(content)}">${escapeHtml(content)}</textarea>
             </div>
             <div class="edit-modal-footer">
                 <button class="btn btn-secondary" data-action="cancel">Cancel</button>
@@ -43,41 +47,41 @@ export function showEditModal(filePath, content, jumpToLine = null) {
             </div>
         </div>
     `;
-    
+
     document.body.appendChild(modal);
-    
+
     const textarea = modal.querySelector('.edit-textarea');
     textarea.focus();
-    
+
     // Set up line number synchronization
     const lineNumbersEl = modal.querySelector('.edit-line-numbers');
     textarea.addEventListener('scroll', () => {
         lineNumbersEl.scrollTop = textarea.scrollTop;
     });
-    
+
     // Update line numbers on content change
     textarea.addEventListener('input', () => {
         const newLines = textarea.value.split('\n');
-        const newLineNumbers = newLines.map((_, i) => i + 1).join('\n');
-        lineNumbersEl.textContent = newLineNumbers;
+        const newLineNumbersHTML = newLines.map((_, i) => `<div>${i + 1}</div>`).join('');
+        lineNumbersEl.innerHTML = newLineNumbersHTML;
     });
-    
+
     // Add event listeners
     const closeBtn = modal.querySelector('.edit-modal-close');
     const cancelBtn = modal.querySelector('[data-action="cancel"]');
     const saveBtn = modal.querySelector('[data-action="save"]');
-    
+
     closeBtn.addEventListener('click', closeEditModal);
     cancelBtn.addEventListener('click', closeEditModal);
     saveBtn.addEventListener('click', saveFileEdit);
-    
+
     // Jump to specific line if requested
     if (jumpToLine) {
         const lineHeight = 16; // matches CSS line-height
         const targetScrollTop = (jumpToLine - 1) * lineHeight;
         textarea.scrollTop = targetScrollTop;
         lineNumbersEl.scrollTop = targetScrollTop;
-        
+
         // Select the line
         setTimeout(() => {
             const startPos = content.split('\n').slice(0, jumpToLine - 1).join('\n').length + (jumpToLine > 1 ? 1 : 0);

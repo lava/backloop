@@ -321,6 +321,15 @@
     white-space: pre;
 }
 
+.edit-line-numbers .highlighted-line {
+    background-color: #fff8c5 !important;
+    font-weight: bold !important;
+    color: #24292f !important;
+    display: block;
+    padding: 0 4px;
+    margin: 0 -4px;
+}
+
 .edit-textarea {
     flex: 1;
     border: none;
