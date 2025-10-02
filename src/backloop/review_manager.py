@@ -29,7 +29,7 @@ class ApprovalRequest(BaseModel):
 class ReviewManager:
     """Manages multiple review sessions and their mounted FastAPI instances."""
     
-    def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
+    def __init__(self, loop: asyncio.AbstractEventLoop | None = None) -> None:
         """Initialize the review manager."""
         self.active_reviews: Dict[str, ReviewSession] = {}
         self._main_app: FastAPI | None = None
@@ -39,11 +39,15 @@ class ReviewManager:
         self._review_approved: Dict[str, bool] = {}  # Track approval status per review
         self._event_loop = loop
         self.event_manager = EventManager()  # Add event manager
-        self.file_watcher = FileWatcher(self.event_manager, loop)  # Add file watcher
-        
-        # Start watching the current directory
-        self.file_watcher.start_watching(str(PathLib.cwd()))
-    
+        self.file_watcher: FileWatcher | None = None
+
+    def initialize_file_watcher(self, loop: asyncio.AbstractEventLoop) -> None:
+        """Initialize the file watcher with an event loop."""
+        if not self.file_watcher:
+            self._event_loop = loop
+            self.file_watcher = FileWatcher(self.event_manager, loop)
+            self.file_watcher.start_watching(str(PathLib.cwd()))
+
     def get_free_port(self) -> int:
         """Get a free port number."""
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

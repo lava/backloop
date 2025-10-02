@@ -35,8 +35,8 @@ class ApprovalRequest(BaseModel):
 # Simple review session storage for standalone server
 current_review_session: ReviewSession | None = None
 
-# Review manager will be created on startup
-review_manager: ReviewManager | None = None
+# Create review manager at module level (without event loop)
+review_manager = ReviewManager()
 
 # Mount static files
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -44,23 +44,22 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 # Include the shared API router
 app.include_router(create_api_router())
 
+# Include the dynamic router at module level
+dynamic_router = review_manager.create_dynamic_router()
+app.include_router(dynamic_router)
+
 @app.on_event("startup")
 async def startup_event() -> None:
     """Initialize the review manager with event loop."""
-    global review_manager
-    
     loop = asyncio.get_running_loop()
-    
-    review_manager = ReviewManager(loop)
-    
-    dynamic_router = review_manager.create_dynamic_router()
-    app.include_router(dynamic_router)
+
+    # Initialize file watcher with the event loop
+    review_manager.initialize_file_watcher(loop)
 
 @app.on_event("shutdown")
 async def shutdown_event() -> None:
     """Clean up resources on shutdown."""
-    global review_manager
-    if review_manager and review_manager.file_watcher:
+    if review_manager.file_watcher:
         review_manager.file_watcher.stop()
 
 def get_or_create_review_session() -> ReviewSession:
