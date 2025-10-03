@@ -561,34 +561,36 @@ export async function approveReview() {
 }
 
 export function showRefreshButton(filePath) {
-    const anchorId = 'file-' + filePath.replace(/[^a-zA-Z0-9]/g, '-');
-    const newFileSection = document.getElementById(`${anchorId}-new-pane`);
+    // Find the active comment form for this file
+    const commentForm = document.querySelector(`.comment-form[data-file-path="${filePath}"]`);
 
-    if (!newFileSection) {
-        console.warn(`File section not found for: ${filePath}`);
+    if (!commentForm) {
+        console.warn(`No active comment form found for: ${filePath}`);
         return;
     }
 
-    const header = newFileSection.querySelector('.file-header');
-    if (!header) {
-        return;
-    }
-
-    if (header.querySelector('.refresh-button')) {
+    // Check if refresh button already exists
+    if (commentForm.querySelector('.refresh-button')) {
         return;
     }
 
     const refreshButton = document.createElement('button');
-    refreshButton.className = 'refresh-button';
-    refreshButton.textContent = '↻ Refresh File';
+    refreshButton.className = 'btn btn-tertiary refresh-button';
+    refreshButton.innerHTML = `
+        <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14">
+            <path d="M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z"/>
+        </svg>
+        Refresh File
+    `;
     refreshButton.title = 'This file has changed on disk. Click to reload.';
-    refreshButton.onclick = () => refreshFile(filePath);
+    refreshButton.onclick = async () => {
+        await refreshFile(filePath);
+        refreshButton.remove();
+    };
 
-    const statusBadge = header.querySelector('.status-badge');
-    if (statusBadge) {
-        header.insertBefore(refreshButton, statusBadge);
-    } else {
-        header.appendChild(refreshButton);
+    const buttonsDiv = commentForm.querySelector('.comment-form-buttons');
+    if (buttonsDiv) {
+        buttonsDiv.appendChild(refreshButton);
     }
 }
 
@@ -645,9 +647,13 @@ export async function refreshFile(filePath) {
 
             updateFileHeaderStats(newFileSection, updatedFile);
 
-            const refreshButton = newFileSection.querySelector('.refresh-button');
-            if (refreshButton) {
-                refreshButton.remove();
+            // Remove refresh button from any active comment form
+            const commentForm = document.querySelector(`.comment-form[data-file-path="${filePath}"]`);
+            if (commentForm) {
+                const refreshButton = commentForm.querySelector('.refresh-button');
+                if (refreshButton) {
+                    refreshButton.remove();
+                }
             }
 
             console.log('File refreshed successfully:', filePath);

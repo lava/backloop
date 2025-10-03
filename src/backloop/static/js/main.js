@@ -1,7 +1,7 @@
 // Main entry point for the review application
 
 import { initializeDiffViewer, approveReview, showRefreshButton, refreshFile } from './diff-viewer.js';
-import { loadAndDisplayComments } from './comments.js';
+import { loadAndDisplayComments, isUserWritingComment } from './comments.js';
 import { openFileEditor, closeEditModal, saveFileEdit } from './file-editor.js';
 import { initializeWebSocket, onEvent } from './websocket-client.js';
 import * as api from './api.js';
@@ -218,12 +218,21 @@ function setupWebSocketHandlers() {
             return;
         }
 
+        // Check if user is currently writing a comment on this file
+        if (isUserWritingComment(relativePath)) {
+            console.log('User is writing comment on file, showing refresh button:', relativePath);
+            showRefreshButton(relativePath);
+            return;
+        }
+
+        // Auto-refresh if recently edited, otherwise apply immediately
         if (wasRecentlyEdited(relativePath)) {
             console.log('Auto-refreshing recently edited file:', relativePath);
             clearRecentlyEdited(relativePath);
             await refreshFile(relativePath);
         } else {
-            showRefreshButton(relativePath);
+            console.log('Auto-refreshing file (no active comment):', relativePath);
+            await refreshFile(relativePath);
         }
     });
 }

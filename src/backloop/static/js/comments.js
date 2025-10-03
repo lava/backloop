@@ -5,6 +5,8 @@ import { openFileEditor } from './file-editor.js';
 
 let commentIdCounter = 1;
 let commentsData = {};
+// Track which files have active comment forms (user is writing)
+let activeCommentForms = new Map(); // filePath -> textarea element
 
 export function showCommentForm(filePath, lineNumber, side, lineElement) {
     console.log('showCommentForm called:', filePath, lineNumber, side);
@@ -12,6 +14,8 @@ export function showCommentForm(filePath, lineNumber, side, lineElement) {
     // Check if form already exists for this line
     const existingForm = lineElement.parentElement.querySelector('.comment-form');
     if (existingForm) {
+        // Remove from tracking
+        activeCommentForms.delete(filePath);
         existingForm.remove();
         return;
     }
@@ -43,8 +47,12 @@ export function showCommentForm(filePath, lineNumber, side, lineElement) {
     const cancelBtn = commentForm.querySelector('[data-action="cancel"]');
     const submitBtn = commentForm.querySelector('[data-action="submit"]');
     const editDirectlyBtn = commentForm.querySelector('[data-action="edit-directly"]');
+    const textarea = commentForm.querySelector('textarea');
 
-    cancelBtn.addEventListener('click', () => commentForm.remove());
+    cancelBtn.addEventListener('click', () => {
+        activeCommentForms.delete(filePath);
+        commentForm.remove();
+    });
     submitBtn.addEventListener('click', () => submitComment(submitBtn));
 
     if (editDirectlyBtn) {
@@ -53,7 +61,10 @@ export function showCommentForm(filePath, lineNumber, side, lineElement) {
 
     // Insert after the line element
     lineElement.parentElement.insertBefore(commentForm, lineElement.nextSibling);
-    commentForm.querySelector('textarea').focus();
+    textarea.focus();
+
+    // Track this comment form
+    activeCommentForms.set(filePath, textarea);
 }
 
 export async function submitComment(buttonElement) {
@@ -98,6 +109,7 @@ export async function submitComment(buttonElement) {
         const lineElement = document.getElementById(lineElementId);
         
         // Remove form and display comment with queue position
+        activeCommentForms.delete(filePath);
         form.remove();
         displayCommentWithQueue(comment, lineNumber, side, lineElement);
         
@@ -124,7 +136,8 @@ export async function submitComment(buttonElement) {
         
         const lineElementId = form.dataset.lineElementId;
         const lineElement = document.getElementById(lineElementId);
-        
+
+        activeCommentForms.delete(filePath);
         form.remove();
         displayCommentWithQueue(comment, lineNumber, side, lineElement);
     }
@@ -277,11 +290,17 @@ function escapeHtml(text) {
 export async function openEditDirectly(filePath, lineNumber, commentForm) {
     // Close the comment form
     if (commentForm) {
+        activeCommentForms.delete(filePath);
         commentForm.remove();
     }
 
     // Open the file editor at the specified line
     await openFileEditor(filePath, parseInt(lineNumber));
+}
+
+// Check if user is currently writing a comment on a file
+export function isUserWritingComment(filePath) {
+    return activeCommentForms.has(filePath);
 }
 
 export { commentsData };
