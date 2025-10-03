@@ -21,6 +21,21 @@ function clearRecentlyEdited(filePath) {
     recentlyEditedFiles.delete(filePath);
 }
 
+function removeFileFromView(filePath) {
+    // Remove from file tree
+    const anchorId = 'file-' + filePath.replace(/[^a-zA-Z0-9]/g, '-');
+    const fileTreeItem = document.querySelector(`.file-tree-item[onclick*="${filePath}"]`);
+    if (fileTreeItem) {
+        fileTreeItem.remove();
+    }
+
+    // Remove from diff view
+    const fileSection = document.getElementById(anchorId);
+    if (fileSection) {
+        fileSection.remove();
+    }
+}
+
 async function reloadDiffData() {
     try {
         // Parse query parameters to get current diff settings
@@ -143,6 +158,37 @@ function setupWebSocketHandlers() {
     onEvent('review_approved', (event) => {
         console.log('Review approved event received:', event);
         // Could show a notification or update UI
+    });
+
+    // Handle file removed events
+    onEvent('file_removed', async (event) => {
+        console.log('File removed event received:', event);
+        const filePath = event.data.file_path;
+
+        let relativePath = filePath;
+        let fileFound = false;
+
+        if (filePath.includes('/')) {
+            const parts = filePath.split('/');
+            for (let i = parts.length - 1; i >= 0; i--) {
+                const testPath = parts.slice(i).join('/');
+                const anchorId = 'file-' + testPath.replace(/[^a-zA-Z0-9]/g, '-');
+                const fileSection = document.getElementById(anchorId);
+                if (fileSection) {
+                    relativePath = testPath;
+                    fileFound = true;
+                    break;
+                }
+            }
+        }
+
+        if (fileFound) {
+            console.log('Removing file from view:', relativePath);
+            removeFileFromView(relativePath);
+        } else {
+            console.log('File not found in current diff, reloading diff data:', relativePath);
+            await reloadDiffData();
+        }
     });
 
     // Handle file changed events

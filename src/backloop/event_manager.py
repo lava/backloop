@@ -12,6 +12,7 @@ class EventType(Enum):
     COMMENT_DEQUEUED = "comment_dequeued"
     COMMENT_RESOLVED = "comment_resolved"
     FILE_CHANGED = "file_changed"
+    FILE_REMOVED = "file_removed"
     REVIEW_APPROVED = "review_approved"
     REVIEW_UPDATED = "review_updated"
 
