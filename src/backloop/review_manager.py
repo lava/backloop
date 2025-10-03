@@ -81,6 +81,8 @@ class ReviewManager:
     
     def create_dynamic_router(self) -> APIRouter:
         """Create a dynamic router that handles all review paths."""
+        if settings.debug:
+            print("[DEBUG] Creating dynamic router")
         router = APIRouter()
 
         # Get the static directory
@@ -199,9 +201,10 @@ class ReviewManager:
                 # - Send notifications
                 # - Update review status
                 # - Integrate with external systems
-                
-                print(f"Review {review_id} approved at {approval_time}")
-                
+
+                if settings.debug:
+                    print(f"Review {review_id} approved at {approval_time}")
+
                 # Mark review as approved and trigger event for waiting MCP tools
                 if settings.debug:
                     print(f"[DEBUG] Marking review {review_id} as approved")
@@ -266,12 +269,26 @@ class ReviewManager:
                 # Unsubscribe when done
                 await self.event_manager.unsubscribe(subscriber.id)
 
-        @router.websocket("/ws")
-        async def websocket_endpoint(websocket: WebSocket) -> None:
-            """WebSocket endpoint for real-time updates."""
+        @router.websocket("/review/{review_id}/ws")
+        async def websocket_endpoint(websocket: WebSocket, review_id: str = Path(...)) -> None:
+            """WebSocket endpoint for real-time updates for a specific review."""
+            if settings.debug:
+                print(f"[DEBUG] WebSocket connection attempt for review_id: {review_id}")
+                print(f"[DEBUG] Active reviews: {list(self.active_reviews.keys())}")
+
+            # Verify review exists
+            review_session = self.get_review_session(review_id)
+            if not review_session:
+                if settings.debug:
+                    print(f"[DEBUG] Review {review_id} not found, closing connection")
+                await websocket.close(code=1008, reason="Review not found")
+                return
+
+            if settings.debug:
+                print(f"[DEBUG] Review {review_id} found, accepting WebSocket connection")
             await websocket.accept()
 
-            # Subscribe to events
+            # Subscribe to events for this specific review
             subscriber = await self.event_manager.subscribe(last_event_id=None)
 
             try:
@@ -279,7 +296,7 @@ class ReviewManager:
                     # Wait for events with a timeout
                     events = await self.event_manager.wait_for_events(subscriber, timeout=30.0)
 
-                    # Send events to client
+                    # Send events to client (event manager already filters by review_id)
                     for event in events:
                         await websocket.send_json(event.to_dict())
 
@@ -289,6 +306,8 @@ class ReviewManager:
                 # Unsubscribe when done
                 await self.event_manager.unsubscribe(subscriber.id)
 
+        if settings.debug:
+            print("[DEBUG] Dynamic router created with WebSocket endpoint at /review/{review_id}/ws")
         return router
     
     def remove_review_session(self, review_id: str) -> bool:
