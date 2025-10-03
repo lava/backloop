@@ -4,7 +4,7 @@ from typing import List, Union
 from mcp.server.fastmcp import FastMCP
 
 from backloop.models import Comment, ReviewApproved, CommentStatus
-from backloop.review_manager import ReviewManager
+from backloop.review_manager import ReviewManager, PendingComment
 from backloop.event_manager import EventType
 
 # MCP server and review manager
@@ -73,15 +73,17 @@ async def await_comments() -> Union[dict, str]:
 
     if isinstance(result, ReviewApproved):
         return "REVIEW APPROVED"
-    elif isinstance(result, Comment):
-        # Return comment with file name and line number
+    elif isinstance(result, PendingComment):
+        comment = result.comment
+        # Return comment with file name, line number, and review context
         return {
-            "id": result.id,
-            "file_path": result.file_path,
-            "line_number": result.line_number,
-            "side": result.side,
-            "content": result.content,
-            "author": result.author,
+            "review_id": result.review_id,
+            "id": comment.id,
+            "file_path": comment.file_path,
+            "line_number": comment.line_number,
+            "side": comment.side,
+            "content": comment.content,
+            "author": comment.author,
         }
     else:
         # This shouldn't happen but handle it gracefully

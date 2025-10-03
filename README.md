@@ -57,7 +57,7 @@ Starts a new review session. Exactly one parameter must be specified:
 
 ### `await_comments`
 Blocks until either a comment is posted or the review is approved.
-Returns comment details or "REVIEW APPROVED".
+Returns comment details (including the originating `review_id`) or "REVIEW APPROVED".
 
 ### `resolve_comment`
 Marks a specific comment as resolved by its ID.

@@ -18,7 +18,7 @@ from typing import Optional
 # Add src to path to import backloop modules
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from backloop.review_manager import ReviewManager
+from backloop.review_manager import ReviewManager, PendingComment
 from backloop.models import Comment, ReviewApproved
 from backloop.config import settings
 from backloop.event_manager import EventType
@@ -106,13 +106,14 @@ async def main() -> None:
             print(f"Review {result.review_id} was approved at {result.timestamp}")
             print(f"Total comments received: {comment_count}")
             break
-        elif isinstance(result, Comment):
+        elif isinstance(result, PendingComment):
             comment_count += 1
             print(f"\n📝 Comment #{comment_count}")
-            print(f"   File: {result.file_path}")
-            print(f"   Line: {result.line_number} ({result.side} side)")
-            print(f"   Author: {result.author}")
-            print(f"   Content: {result.content}")
+            print(f"   Review: {result.review_id}")
+            print(f"   File: {result.comment.file_path}")
+            print(f"   Line: {result.comment.line_number} ({result.comment.side} side)")
+            print(f"   Author: {result.comment.author}")
+            print(f"   Content: {result.comment.content}")
             print("-" * 60)
         else:
             print(f"\n⚠️  Unexpected result type: {type(result)}")

@@ -2,6 +2,7 @@ import asyncio
 import threading
 import time
 import socket
+from dataclasses import dataclass
 from typing import Dict, List, Union
 from datetime import datetime
 import uvicorn
@@ -33,6 +34,14 @@ class ApprovalRequest(BaseModel):
     timestamp: str
 
 
+@dataclass
+class PendingComment:
+    """Container for a queued comment and its associated review."""
+
+    review_id: str
+    comment: Comment
+
+
 class ReviewManager:
     """Manages multiple review sessions and their mounted FastAPI instances."""
 
@@ -42,7 +51,8 @@ class ReviewManager:
         self._main_app: FastAPI | None = None
         self._web_server_port: int | None = None
         self._web_server_thread: threading.Thread | None = None
-        self._pending_comments: asyncio.Queue[Comment] = asyncio.Queue()
+        self._pending_comments: asyncio.Queue[PendingComment] = asyncio.Queue()
+        self._pending_comment_counts: Dict[str, int] = {}
         self._review_approved: Dict[str, bool] = {}  # Track approval status per review
         self._event_loop = loop
         self.event_manager = EventManager()  # Add event manager
@@ -166,7 +176,7 @@ class ReviewManager:
             )
 
             # Add comment to pending queue for MCP server
-            self.add_comment_to_queue(comment)
+            self.add_comment_to_queue(review_id, comment)
 
             return SuccessResponse(
                 data={
@@ -423,83 +433,98 @@ class ReviewManager:
         """Get the current web server port, if running."""
         return self._web_server_port
 
-    def add_comment_to_queue(self, comment: Comment) -> None:
-        """Add a comment to the pending queue."""
+    def add_comment_to_queue(self, review_id: str, comment: Comment) -> None:
+        """Add a comment to the pending queue for a specific review."""
         if settings.debug:
             print(
-                f"[DEBUG] Adding comment to queue: {comment.file_path}:{comment.line_number} - {comment.content[:50]}..."
+                f"[DEBUG] Adding comment to queue for review {review_id}: {comment.file_path}:{comment.line_number} - {comment.content[:50]}..."
             )
             print(
                 f"[DEBUG] Queue length after adding: {self._pending_comments.qsize() + 1}"
             )
 
+        def enqueue() -> None:
+            current = self._pending_comment_counts.get(review_id, 0)
+            self._pending_comment_counts[review_id] = current + 1
+            self._pending_comments.put_nowait(
+                PendingComment(review_id=review_id, comment=comment)
+            )
+
         # Thread-safe way to put comment in queue from FastAPI thread
         if self._event_loop:
-            self._event_loop.call_soon_threadsafe(
-                self._pending_comments.put_nowait, comment
-            )
+            self._event_loop.call_soon_threadsafe(enqueue)
         else:
-            self._pending_comments.put_nowait(comment)
+            enqueue()
 
-    async def await_comments(self) -> Union[Comment, ReviewApproved]:
+    async def await_comments(self) -> Union[PendingComment, ReviewApproved]:
         """Wait for review comments to be posted or review to be approved.
 
         Returns:
-        - Comment if a comment is available
+        - PendingComment if a comment is available
         - ReviewApproved if review is approved and no comments pending
         """
         if settings.debug:
             print("[DEBUG] await_comments called, entering wait loop")
 
         while True:
-            # Check if the most recent review is approved (before waiting for comments)
-            recent_review = self.get_most_recent_review()
-            if recent_review and self._review_approved.get(recent_review.id, False):
-                # Check if queue is empty - if so, return approval
-                if self._pending_comments.empty():
+            # Check if any approved review has no pending comments left
+            for review_id, approved in list(self._review_approved.items()):
+                if approved and self._pending_comment_counts.get(review_id, 0) == 0:
                     if settings.debug:
                         print(
-                            f"[DEBUG] Review {recent_review.id} is approved and queue empty, returning ReviewApproved"
+                            f"[DEBUG] Review {review_id} is approved with no pending comments, returning ReviewApproved"
                         )
                     return ReviewApproved(
-                        review_id=recent_review.id, timestamp=datetime.now().isoformat()
+                        review_id=review_id, timestamp=datetime.now().isoformat()
                     )
 
             try:
                 # Wait for a comment with a short timeout to periodically check approval status
-                comment = await asyncio.wait_for(
+                pending_comment = await asyncio.wait_for(
                     self._pending_comments.get(), timeout=1.0
                 )
 
                 if settings.debug:
                     print(
-                        f"[DEBUG] Returning comment from queue: {comment.file_path}:{comment.line_number}"
+                        f"[DEBUG] Returning comment from queue: {pending_comment.comment.file_path}:{pending_comment.comment.line_number} (review {pending_comment.review_id})"
                     )
                     print(
                         f"[DEBUG] Remaining comments in queue: {self._pending_comments.qsize()}"
                     )
 
+                # Track that one less comment is pending for this review
+                current = self._pending_comment_counts.get(pending_comment.review_id, 0)
+                if current <= 1:
+                    self._pending_comment_counts.pop(pending_comment.review_id, None)
+                else:
+                    self._pending_comment_counts[pending_comment.review_id] = current - 1
+
                 # Update comment status to 'in progress' and remove from comment service queue
-                if recent_review:
-                    recent_review.comment_service.update_comment_status(
-                        comment.id, CommentStatus.IN_PROGRESS
+                review_session = self.get_review_session(pending_comment.review_id)
+                if review_session:
+                    review_session.comment_service.update_comment_status(
+                        pending_comment.comment.id, CommentStatus.IN_PROGRESS
                     )
-                    recent_review.comment_service.remove_comment_from_queue(comment.id)
+                    review_session.comment_service.remove_comment_from_queue(
+                        pending_comment.comment.id
+                    )
 
                 # Emit event for comment being dequeued with updated queue positions
                 await self.event_manager.emit_event(
                     EventType.COMMENT_DEQUEUED,
                     {
-                        "comment_id": comment.id,
-                        "file_path": comment.file_path,
-                        "line_number": comment.line_number,
-                        "remaining_in_queue": self._pending_comments.qsize(),
+                        "comment_id": pending_comment.comment.id,
+                        "file_path": pending_comment.comment.file_path,
+                        "line_number": pending_comment.comment.line_number,
+                        "remaining_in_queue": self._pending_comment_counts.get(
+                            pending_comment.review_id, 0
+                        ),
                         "status": CommentStatus.IN_PROGRESS,
                     },
-                    review_id=recent_review.id if recent_review else None,
+                    review_id=pending_comment.review_id,
                 )
 
-                return comment
+                return pending_comment
 
             except asyncio.TimeoutError:
                 # Timeout occurred - continue loop to check approval status again

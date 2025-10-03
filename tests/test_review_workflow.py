@@ -4,7 +4,7 @@ import asyncio
 from pathlib import Path
 import pytest
 
-from backloop.review_manager import ReviewManager
+from backloop.review_manager import ReviewManager, PendingComment
 from backloop.models import CommentRequest, CommentStatus
 
 
@@ -123,15 +123,15 @@ class TestReviewWorkflow:
         comment, _ = review.comment_service.add_comment(request)
 
         # Add to manager's queue
-        manager.add_comment_to_queue(comment)
+        manager.add_comment_to_queue(review.id, comment)
 
         # Wait for comment (should return immediately)
         result = await asyncio.wait_for(manager.await_comments(), timeout=2.0)
 
-        # Result should be the comment (not ReviewApproved)
-        from backloop.models import Comment as CommentModel
-        assert isinstance(result, CommentModel)
-        assert result.content == "Test comment"
+        # Result should be the queued comment wrapper (not ReviewApproved)
+        assert isinstance(result, PendingComment)
+        assert result.review_id == review.id
+        assert result.comment.content == "Test comment"
 
     async def test_comment_status_transitions(
         self, git_repo_with_commits: Path
@@ -154,7 +154,7 @@ class TestReviewWorkflow:
         assert comment.status == CommentStatus.PENDING
 
         # Add to queue and dequeue (should transition to IN_PROGRESS)
-        manager.add_comment_to_queue(comment)
+        manager.add_comment_to_queue(review.id, comment)
         await asyncio.wait_for(manager.await_comments(), timeout=2.0)
 
         # Check status changed to IN_PROGRESS
@@ -223,7 +223,7 @@ class TestReviewWorkflow:
         comment, _ = review.comment_service.add_comment(request)
 
         # Add to queue and dequeue
-        manager.add_comment_to_queue(comment)
+        manager.add_comment_to_queue(review.id, comment)
         await asyncio.wait_for(manager.await_comments(), timeout=2.0)
 
         # Check that event was emitted
