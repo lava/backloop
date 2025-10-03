@@ -72,6 +72,8 @@ class CommentService:
             # Remove from queue if present
             if comment_id in self._comment_queue:
                 self._comment_queue.remove(comment_id)
+                # Recalculate positions for remaining comments
+                self._update_queue_positions()
             self._save_comments()
             return True
         return False
