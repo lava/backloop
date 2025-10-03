@@ -36,6 +36,7 @@ app.include_router(create_api_router())
 dynamic_router = review_manager.create_dynamic_router()
 app.include_router(dynamic_router)
 
+
 @app.on_event("startup")
 async def startup_event() -> None:
     """Initialize the review manager with event loop and create default review session."""
@@ -47,6 +48,7 @@ async def startup_event() -> None:
     # Create a default review session for standalone server
     review_manager.create_review_session(commit=None, range=None, since="HEAD")
 
+
 @app.on_event("shutdown")
 async def shutdown_event() -> None:
     """Clean up resources on shutdown."""
@@ -54,15 +56,14 @@ async def shutdown_event() -> None:
         review_manager.file_watcher.stop()
 
 
-
-
-
 def main() -> None:
     """Entry point for the backloop-server command."""
     parser = argparse.ArgumentParser(description="Git Diff Reviewer Server")
-    parser.add_argument("--port", type=int, help="Port to run the server on (default: random)")
+    parser.add_argument(
+        "--port", type=int, help="Port to run the server on (default: random)"
+    )
     args = parser.parse_args()
-    
+
     if args.port:
         port = args.port
         print(f"Review server available at: http://127.0.0.1:{port}")

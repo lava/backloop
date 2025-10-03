@@ -11,6 +11,7 @@ from backloop.event_manager import EventType
 mcp = FastMCP("backloop-mcp")
 review_manager: ReviewManager | None = None
 
+
 def get_review_manager() -> ReviewManager:
     """Get or create the review manager with event loop."""
     global review_manager
@@ -20,21 +21,17 @@ def get_review_manager() -> ReviewManager:
     return review_manager
 
 
-
-
 @mcp.tool()
 def startreview(
-    commit: str | None = None,
-    range: str | None = None,
-    since: str | None = None
+    commit: str | None = None, range: str | None = None, since: str | None = None
 ) -> str:
     """Start a code review session.
-    
+
     # Workflow:
     After starting the session, call the 'await_comments' tool and handle
     comments until the review is approved. After addressing a comment, call
     the 'resolve_comment' tool to mark it as done.
-    
+
     # Parameters:
     - commit: Review changes for a specific commit (e.g., 'abc123', 'HEAD', 'main')
     - range: Review changes for a commit range (e.g., 'main..feature', 'abc123..def456')
@@ -50,32 +47,30 @@ def startreview(
     """
     # Get review manager
     manager = get_review_manager()
-    
-    # Create a new review session 
+
+    # Create a new review session
     review_session = manager.create_review_session(
-        commit=commit, 
-        range=range, 
-        since=since
+        commit=commit, range=range, since=since
     )
-    
+
     # Start web server if not already running and get URL
     port = manager.start_web_server()
     review_url = f"http://127.0.0.1:{port}/review/{review_session.id}"
-    
+
     return f"""Review session started at {review_url}."""
 
 
 @mcp.tool()
 async def await_comments() -> Union[dict, str]:
     """Wait for review comments to be posted by the user.
-    
+
     Blocks until either:
     - A comment is available (returns dict with comment details)
     - The review is approved and no comments remain (returns "REVIEW APPROVED")
     """
     manager = get_review_manager()
     result = await manager.await_comments()
-    
+
     if isinstance(result, ReviewApproved):
         return "REVIEW APPROVED"
     elif isinstance(result, Comment):
@@ -86,7 +81,7 @@ async def await_comments() -> Union[dict, str]:
             "line_number": result.line_number,
             "side": result.side,
             "content": result.content,
-            "author": result.author
+            "author": result.author,
         }
     else:
         # This shouldn't happen but handle it gracefully
@@ -96,25 +91,27 @@ async def await_comments() -> Union[dict, str]:
 @mcp.tool()
 async def resolve_comment(comment_id: str) -> str:
     """Mark a comment as resolved and emit an event to update the frontend.
-    
+
     Parameters:
     - comment_id: The ID of the comment to mark as resolved
-    
+
     Returns a status message indicating success or failure.
     """
     manager = get_review_manager()
-    
+
     # Find the review session that contains this comment
     comment_found = False
     updated_comment = None
-    
+
     for review_session in manager.active_reviews.values():
         comment = review_session.comment_service.get_comment(comment_id)
         if comment:
             # Update the comment status to RESOLVED
-            updated_comment = review_session.comment_service.update_comment_status(comment_id, CommentStatus.RESOLVED)
+            updated_comment = review_session.comment_service.update_comment_status(
+                comment_id, CommentStatus.RESOLVED
+            )
             comment_found = True
-            
+
             # Emit event for comment being resolved
             await manager.event_manager.emit_event(
                 EventType.COMMENT_RESOLVED,
@@ -122,22 +119,21 @@ async def resolve_comment(comment_id: str) -> str:
                     "comment_id": comment_id,
                     "file_path": comment.file_path,
                     "line_number": comment.line_number,
-                    "status": CommentStatus.RESOLVED
+                    "status": CommentStatus.RESOLVED,
                 },
-                review_id=review_session.id
+                review_id=review_session.id,
             )
             break
-    
+
     if comment_found and updated_comment:
         return f"Comment {comment_id} has been marked as resolved."
     else:
         return f"Comment {comment_id} not found in any active review session."
 
 
-
 def main() -> None:
     """Entry point for the stdio MCP server."""
-    mcp.run('stdio')
+    mcp.run("stdio")
 
 
 if __name__ == "__main__":
