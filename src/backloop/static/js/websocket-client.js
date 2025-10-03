@@ -11,7 +11,9 @@ export function initializeWebSocket() {
 
 function connectWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    // Extract review ID from URL path (e.g., /review/abc123/view)
+    const reviewId = window.location.pathname.split('/')[2];
+    const wsUrl = `${protocol}//${window.location.host}/review/${reviewId}/ws`;
 
     console.log('Connecting to WebSocket:', wsUrl);
 

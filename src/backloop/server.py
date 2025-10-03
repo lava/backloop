@@ -42,7 +42,7 @@ async def startup_event() -> None:
     loop = asyncio.get_running_loop()
 
     # Initialize file watcher with the event loop
-    review_manager.initialize_file_watcher(loop)
+    review_manager._initialize_file_watcher(loop)
 
     # Create a default review session for standalone server
     review_manager.create_review_session(commit=None, range=None, since="HEAD")

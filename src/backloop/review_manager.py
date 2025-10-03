@@ -41,9 +41,13 @@ class ReviewManager:
         self.event_manager = EventManager()  # Add event manager
         self.file_watcher: FileWatcher | None = None
 
-    def initialize_file_watcher(self, loop: asyncio.AbstractEventLoop) -> None:
+        # Initialize file watcher if event loop is provided
+        if loop is not None:
+            self._initialize_file_watcher(loop)
+
+    def _initialize_file_watcher(self, loop: asyncio.AbstractEventLoop) -> None:
         """Initialize the file watcher with an event loop."""
-        if not self.file_watcher:
+        if self.file_watcher is None:
             self._event_loop = loop
             self.file_watcher = FileWatcher(self.event_manager, loop)
             self.file_watcher.start_watching(str(PathLib.cwd()))
