@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from backloop.review_manager import ReviewManager
 from backloop.models import Comment, ReviewApproved
-from backloop.utils.settings import settings
+from backloop.config import settings
 from backloop.event_manager import EventType
 
 

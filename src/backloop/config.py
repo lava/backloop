@@ -1,67 +1,139 @@
-"""Configuration management for the reviewer application."""
+"""Configuration management for the backloop application."""
 
 import os
 from pathlib import Path
-from pydantic import BaseModel
 from typing import Optional
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class ServerConfig(BaseModel):
-    """Server configuration."""
+class Settings(BaseSettings):
+    """Application settings loaded from environment variables.
 
-    host: str = "127.0.0.1"
-    port: Optional[int] = None
-    debug: bool = False
-    reload: bool = False
+    Uses BACKLOOP_ prefix for all environment variables.
+    Supports loading from .env file.
 
+    Examples:
+        BACKLOOP_DEBUG=true
+        BACKLOOP_HOST=0.0.0.0
+        BACKLOOP_PORT=8080
+    """
 
-class ReviewConfig(BaseModel):
-    """Review configuration."""
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_prefix="BACKLOOP_",
+        case_sensitive=False,
+    )
 
-    default_since: str = "HEAD"
-    auto_refresh_interval: int = 30  # seconds
-    max_diff_size: int = 1000000  # bytes
+    # Server configuration
+    host: str = Field(
+        default="127.0.0.1",
+        description="Server host address",
+    )
+    port: Optional[int] = Field(
+        default=None,
+        description="Server port (auto-assigned if not specified)",
+        ge=1,
+        le=65535,
+    )
+    debug: bool = Field(
+        default=False,
+        description="Enable debug mode with verbose logging",
+    )
+    reload: bool = Field(
+        default=False,
+        description="Enable auto-reload on code changes",
+    )
 
+    # Review configuration
+    default_since: str = Field(
+        default="HEAD",
+        description="Default git reference for review diffs",
+    )
+    auto_refresh_interval: int = Field(
+        default=30,
+        description="Auto-refresh interval in seconds",
+        ge=1,
+        le=3600,
+    )
+    max_diff_size: int = Field(
+        default=1000000,
+        description="Maximum diff size in bytes",
+        ge=1,
+    )
 
-class StaticConfig(BaseModel):
-    """Static files configuration."""
+    # Static files configuration
+    static_dir: Optional[Path] = Field(
+        default=None,
+        description="Custom static files directory",
+    )
+    templates_dir: Optional[Path] = Field(
+        default=None,
+        description="Custom templates directory",
+    )
 
-    static_dir: Optional[Path] = None
-    templates_dir: Optional[Path] = None
-
-
-class Config(BaseModel):
-    """Main application configuration."""
-
-    server: ServerConfig = ServerConfig()
-    review: ReviewConfig = ReviewConfig()
-    static: StaticConfig = StaticConfig()
+    @field_validator("static_dir", "templates_dir", mode="before")
+    @classmethod
+    def validate_path(cls, v: Optional[str | Path]) -> Optional[Path]:
+        """Convert string paths to Path objects."""
+        if v is None or isinstance(v, Path):
+            return v
+        return Path(v)
 
     @classmethod
-    def load(cls) -> "Config":
-        """Load configuration from environment variables."""
-        config = cls()
+    def load_with_legacy_support(cls) -> "Settings":
+        """Load settings with support for legacy environment variable prefixes.
 
-        # Server config from environment
-        if port := os.getenv("REVIEWER_PORT"):
-            config.server.port = int(port)
-        if host := os.getenv("REVIEWER_HOST"):
-            config.server.host = host
-        if debug := os.getenv("REVIEWER_DEBUG"):
-            config.server.debug = debug.lower() in ("true", "1", "yes")
-        if reload := os.getenv("REVIEWER_RELOAD"):
-            config.server.reload = reload.lower() in ("true", "1", "yes")
+        Supports backward compatibility with:
+        - REVIEWER_* prefix (old config.py)
+        - LOOPBACK_CI_* prefix (old settings.py)
 
-        # Review config from environment
-        if since := os.getenv("REVIEWER_DEFAULT_SINCE"):
-            config.review.default_since = since
-        if interval := os.getenv("REVIEWER_REFRESH_INTERVAL"):
-            config.review.auto_refresh_interval = int(interval)
-        if max_size := os.getenv("REVIEWER_MAX_DIFF_SIZE"):
-            config.review.max_diff_size = int(max_size)
+        Priority: BACKLOOP_* > REVIEWER_* > LOOPBACK_CI_*
+        """
+        # Create base settings from BACKLOOP_ variables
+        settings = cls()
 
-        return config
+        # Legacy REVIEWER_* support
+        legacy_mappings = {
+            "REVIEWER_HOST": "host",
+            "REVIEWER_PORT": "port",
+            "REVIEWER_DEBUG": "debug",
+            "REVIEWER_RELOAD": "reload",
+            "REVIEWER_DEFAULT_SINCE": "default_since",
+            "REVIEWER_REFRESH_INTERVAL": "auto_refresh_interval",
+            "REVIEWER_MAX_DIFF_SIZE": "max_diff_size",
+            "REVIEWER_STATIC_DIR": "static_dir",
+            "REVIEWER_TEMPLATES_DIR": "templates_dir",
+        }
+
+        # Legacy LOOPBACK_CI_* support (only debug was used)
+        legacy_mappings["LOOPBACK_CI_DEBUG"] = "debug"
+
+        # Apply legacy values only if BACKLOOP_ version not set
+        for legacy_var, field_name in legacy_mappings.items():
+            value = os.getenv(legacy_var)
+            if value and not os.getenv(f"BACKLOOP_{field_name.upper()}"):
+                # Get current value from settings
+                current = getattr(settings, field_name)
+
+                # Convert based on field type
+                if field_name in ("debug", "reload"):
+                    setattr(settings, field_name, value.lower() in ("true", "1", "yes"))
+                elif field_name in ("port", "auto_refresh_interval", "max_diff_size"):
+                    setattr(settings, field_name, int(value))
+                elif field_name in ("static_dir", "templates_dir"):
+                    setattr(settings, field_name, Path(value))
+                else:
+                    setattr(settings, field_name, value)
+
+        return settings
 
 
-# Global configuration instance
-config = Config.load()
+# Global settings instance with legacy support
+settings = Settings.load_with_legacy_support()
+
+
+# Backward compatibility aliases
+config = settings  # For code that imports 'config'
+Config = Settings  # For code that references 'Config' class

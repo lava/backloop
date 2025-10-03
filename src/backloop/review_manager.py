@@ -18,7 +18,7 @@ from backloop.models import (
 )
 from backloop.api.responses import SuccessResponse, CommentResponse
 from backloop.review_session import ReviewSession
-from backloop.utils.settings import settings
+from backloop.config import settings
 from fastapi import HTTPException, Path, APIRouter, Query
 from fastapi.responses import FileResponse, RedirectResponse
 from pathlib import Path as PathLib
