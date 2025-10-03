@@ -1,7 +1,6 @@
 // File editing functionality
 
 import * as api from './api.js';
-import { markFileAsEdited } from './main.js';
 
 export async function openFileEditor(filePath, lineNumber = null) {
     try {
@@ -13,12 +12,17 @@ export async function openFileEditor(filePath, lineNumber = null) {
     }
 }
 
+// Store original content separately to avoid HTML attribute encoding issues
+let originalFileContent = '';
+
 export function showEditModal(filePath, content, jumpToLine = null) {
     // Remove existing modal if any
     const existingModal = document.querySelector('.edit-modal');
     if (existingModal) {
         existingModal.remove();
     }
+
+    originalFileContent = content;
 
     const modal = document.createElement('div');
     modal.className = 'edit-modal';
@@ -39,7 +43,7 @@ export function showEditModal(filePath, content, jumpToLine = null) {
             </div>
             <div class="edit-modal-body">
                 <div class="edit-line-numbers">${lineNumbersHTML}</div>
-                <textarea class="edit-textarea" spellcheck="false" data-file-path="${escapeHtml(filePath)}" data-original-content="${escapeHtml(content)}">${escapeHtml(content)}</textarea>
+                <textarea class="edit-textarea" spellcheck="false" data-file-path="${escapeHtml(filePath)}">${escapeHtml(content)}</textarea>
             </div>
             <div class="edit-modal-footer">
                 <button class="btn btn-secondary" data-action="cancel">Cancel</button>
@@ -104,24 +108,20 @@ export async function saveFileEdit() {
 
     const textarea = modal.querySelector('.edit-textarea');
     const filePath = textarea.dataset.filePath;
-    const originalContent = textarea.dataset.originalContent;
     const newContent = textarea.value;
 
     try {
-        // Create a unified diff patch
-        const patch = createUnifiedDiff(originalContent, newContent, filePath);
+        // Create a unified diff patch using module-level originalFileContent
+        const patch = createUnifiedDiff(originalFileContent, newContent, filePath);
 
         const result = await api.saveFileEdit(filePath, patch);
         console.log('File saved successfully:', result);
 
-        // Mark this file as recently edited so it auto-refreshes on file_changed event
-        markFileAsEdited(filePath);
-
         // Close modal
         closeEditModal();
 
-        // Wait for file watcher to detect the change and auto-refresh
-        // (No page reload needed - the file_changed event will trigger auto-refresh)
+        // Reload page to show updated diff
+        window.location.reload();
 
     } catch (error) {
         console.error('Error saving file:', error);
@@ -135,14 +135,15 @@ function createUnifiedDiff(originalContent, newContent, filePath) {
     const originalEndsWithNewline = originalContent.endsWith('\n');
     const newEndsWithNewline = newContent.endsWith('\n');
     
-    // Split lines properly - remove empty trailing element if no trailing newline
+    // Split lines properly - remove empty trailing element from split
     let originalLines = originalContent.split('\n');
     let newLines = newContent.split('\n');
-    
-    if (!originalEndsWithNewline && originalLines[originalLines.length - 1] === '') {
+
+    // When content ends with \n, split creates an empty string at the end
+    if (originalEndsWithNewline && originalLines[originalLines.length - 1] === '') {
         originalLines.pop();
     }
-    if (!newEndsWithNewline && newLines[newLines.length - 1] === '') {
+    if (newEndsWithNewline && newLines[newLines.length - 1] === '') {
         newLines.pop();
     }
     

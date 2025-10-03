@@ -6,20 +6,6 @@ import { openFileEditor, closeEditModal, saveFileEdit } from './file-editor.js';
 import { initializeWebSocket, onEvent } from './websocket-client.js';
 import * as api from './api.js';
 
-// Track files that were recently edited for auto-refresh
-const recentlyEditedFiles = new Set();
-
-export function markFileAsEdited(filePath) {
-    recentlyEditedFiles.add(filePath);
-}
-
-function wasRecentlyEdited(filePath) {
-    return recentlyEditedFiles.has(filePath);
-}
-
-function clearRecentlyEdited(filePath) {
-    recentlyEditedFiles.delete(filePath);
-}
 
 function removeFileFromView(filePath) {
     // Remove from file tree
@@ -225,15 +211,8 @@ function setupWebSocketHandlers() {
             return;
         }
 
-        // Auto-refresh if recently edited, otherwise apply immediately
-        if (wasRecentlyEdited(relativePath)) {
-            console.log('Auto-refreshing recently edited file:', relativePath);
-            clearRecentlyEdited(relativePath);
-            await refreshFile(relativePath);
-        } else {
-            console.log('Auto-refreshing file (no active comment):', relativePath);
-            await refreshFile(relativePath);
-        }
+        console.log('Auto-refreshing file:', relativePath);
+        await refreshFile(relativePath);
     });
 }
 
