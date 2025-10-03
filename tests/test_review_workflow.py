@@ -5,7 +5,8 @@ from pathlib import Path
 import pytest
 
 from backloop.review_manager import ReviewManager, PendingComment
-from backloop.models import CommentRequest, CommentStatus
+from backloop.models import CommentRequest, CommentStatus, ReviewApproved
+from backloop.event_manager import EventType
 
 
 class TestReviewWorkflow:
@@ -240,6 +241,60 @@ class TestReviewWorkflow:
         ]
         assert len(dequeued_events) > 0
         assert dequeued_events[0].data["comment_id"] == comment.id
+
+    async def test_event_scoping_per_review(
+        self, git_repo_with_commits: Path
+    ) -> None:
+        """Ensure subscribers only receive events for their review when scoped."""
+        loop = asyncio.get_event_loop()
+        manager = ReviewManager(loop=loop)
+
+        review1 = manager.create_review_session(commit="HEAD")
+        review2 = manager.create_review_session(commit="HEAD")
+
+        all_subscriber = await manager.event_manager.subscribe()
+        review2_subscriber = await manager.event_manager.subscribe(
+            review_id=review2.id
+        )
+
+        await manager.event_manager.emit_event(
+            EventType.REVIEW_UPDATED, {"review": review1.id}, review_id=review1.id
+        )
+        await manager.event_manager.emit_event(
+            EventType.REVIEW_UPDATED, {"review": review2.id}, review_id=review2.id
+        )
+
+        all_events = await manager.event_manager.wait_for_events(
+            all_subscriber, timeout=1.0
+        )
+        scoped_events = await manager.event_manager.wait_for_events(
+            review2_subscriber, timeout=1.0
+        )
+
+        assert len(all_events) == 2
+        assert {event.review_id for event in all_events} == {review1.id, review2.id}
+
+        assert len(scoped_events) == 1
+        assert scoped_events[0].review_id == review2.id
+        assert scoped_events[0].data["review"] == review2.id
+
+    async def test_await_comments_returns_review_approved_when_no_pending(
+        self, git_repo_with_commits: Path
+    ) -> None:
+        """Return ReviewApproved when latest review is approved and queue is empty."""
+        loop = asyncio.get_event_loop()
+        manager = ReviewManager(loop=loop)
+
+        review = manager.create_review_session(commit="HEAD")
+        manager._review_approved[review.id] = True
+
+        result = await asyncio.wait_for(manager.await_comments(), timeout=1.0)
+
+        assert isinstance(result, ReviewApproved)
+        assert result.review_id == review.id
+
+        if manager.file_watcher:
+            manager.file_watcher.stop()
 
     async def test_live_diff_workflow(self, git_repo_with_commits: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test creating a review session for live changes."""

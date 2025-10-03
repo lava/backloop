@@ -48,6 +48,7 @@ class EventSubscriber:
     events: List[Event] = field(default_factory=list)
     last_event_id: str | None = None
     created_at: float = field(default_factory=time.time)
+    review_id: str | None = None
 
 
 class EventManager:
@@ -95,14 +96,15 @@ class EventManager:
 
             # Notify subscribers
             for subscriber in list(self._subscribers.values()):
-                # Add event to subscriber's queue
-                subscriber.events.append(event)
-                # Set the event to wake up the subscriber
-                subscriber.event.set()
+                if subscriber.review_id is None or subscriber.review_id == review_id:
+                    subscriber.events.append(event)
+                    subscriber.event.set()
 
             return event
 
-    async def subscribe(self, last_event_id: str | None = None) -> EventSubscriber:
+    async def subscribe(
+        self, last_event_id: str | None = None, review_id: str | None = None
+    ) -> EventSubscriber:
         """Subscribe to events.
 
         Args:
@@ -113,13 +115,18 @@ class EventManager:
         """
         async with self._lock:
             subscriber = EventSubscriber(
-                id=str(uuid.uuid4()), event=asyncio.Event(), last_event_id=last_event_id
+                id=str(uuid.uuid4()),
+                event=asyncio.Event(),
+                last_event_id=last_event_id,
+                review_id=review_id,
             )
 
             # If last_event_id is provided, catch up on missed events
             if last_event_id:
                 found_last = False
                 for event in self._events:
+                    if subscriber.review_id is not None and event.review_id != subscriber.review_id:
+                        continue
                     if found_last:
                         subscriber.events.append(event)
                     elif event.id == last_event_id:

@@ -105,6 +105,9 @@ class CommentService:
         """Remove a comment from the queue and return True if it was removed."""
         if comment_id in self._comment_queue:
             self._comment_queue.remove(comment_id)
+            comment = self._comments.get(comment_id)
+            if comment:
+                comment.queue_position = None
             # Update positions for remaining comments
             self._update_queue_positions()
             self._save_comments()

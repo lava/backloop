@@ -280,6 +280,9 @@ class ReviewManager:
             timeout: float = Query(
                 30.0, description="Long-polling timeout in seconds", ge=0, le=60
             ),
+            review_id: str | None = Query(
+                None, description="Limit events to a specific review if provided"
+            ),
         ) -> SuccessResponse[dict]:
             """Long-polling endpoint for server-side events.
 
@@ -293,7 +296,9 @@ class ReviewManager:
             - review_updated: The review session was updated
             """
             # Subscribe to events
-            subscriber = await self.event_manager.subscribe(last_event_id)
+            subscriber = await self.event_manager.subscribe(
+                last_event_id=last_event_id, review_id=review_id
+            )
 
             try:
                 # Wait for events
@@ -341,7 +346,9 @@ class ReviewManager:
             await websocket.accept()
 
             # Subscribe to events for this specific review
-            subscriber = await self.event_manager.subscribe(last_event_id=None)
+            subscriber = await self.event_manager.subscribe(
+                last_event_id=None, review_id=review_id
+            )
 
             try:
                 while True:
