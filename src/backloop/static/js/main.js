@@ -21,6 +21,45 @@ function clearRecentlyEdited(filePath) {
     recentlyEditedFiles.delete(filePath);
 }
 
+async function reloadDiffData() {
+    try {
+        // Parse query parameters to get current diff settings
+        const urlParams = new URLSearchParams(window.location.search);
+        const commit = urlParams.get('commit');
+        const range = urlParams.get('range');
+        const since = urlParams.get('since');
+        const live = urlParams.get('live') === 'true';
+        const mock = urlParams.get('mock') === 'true';
+
+        // Fetch updated diff data
+        const params = { commit, range, since, live, mock };
+        const diffData = await api.fetchDiff(params);
+
+        if (diffData && diffData.files) {
+            // Update file tree
+            const { buildFileTree, renderFileTree, renderDiffContent } = await import('./diff-viewer.js');
+            const fileTree = buildFileTree(diffData.files);
+            const fileTreeContainer = document.getElementById('file-tree');
+            if (fileTreeContainer) {
+                fileTreeContainer.innerHTML = '';
+                renderFileTree(fileTree, fileTreeContainer);
+            }
+
+            // Update diff content
+            const diffContainer = document.getElementById('diff-container');
+            if (diffContainer) {
+                diffContainer.innerHTML = '';
+                renderDiffContent(diffData.files);
+            }
+
+            console.log('Diff data reloaded successfully');
+        }
+    } catch (error) {
+        console.error('Error reloading diff data:', error);
+        alert('Failed to reload diff data: ' + error.message);
+    }
+}
+
 // Initialize the application when DOM is loaded
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('Review application initializing...');
@@ -128,8 +167,8 @@ function setupWebSocketHandlers() {
         }
 
         if (!fileFound) {
-            console.log('File not found in current diff, refreshing entire view:', relativePath);
-            window.location.reload();
+            console.log('File not found in current diff, reloading diff data:', relativePath);
+            await reloadDiffData();
             return;
         }
 
