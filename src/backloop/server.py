@@ -2,76 +2,84 @@ import argparse
 import asyncio
 import uvicorn
 from pathlib import Path
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from backloop.utils.common import get_random_port
-from backloop.api.router import create_api_router
-from backloop.review_manager import ReviewManager
+from backloop.services.review_service import ReviewService
+from backloop.services.mcp_service import McpService
+from backloop.api.review_router import create_review_router
+from backloop.event_manager import EventManager
+from backloop.file_watcher import FileWatcher
 
-app = FastAPI(title="Git Diff Viewer", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage the application's lifespan."""
+    loop = asyncio.get_running_loop()
+    
+    # Initialize services
+    event_manager = EventManager()
+    review_service = ReviewService(event_manager)
+    mcp_service = McpService(review_service, event_manager, loop)
+    
+    # Initialize file watcher
+    file_watcher = FileWatcher(event_manager, loop)
+    file_watcher.start_watching(str(Path.cwd()))
+
+    # Start the review service's event listener
+    review_service.start_event_listener()
+
+    # Store services in app state
+    app.state.review_service = review_service
+    app.state.mcp_service = mcp_service
+    app.state.event_manager = event_manager
+    app.state.file_watcher = file_watcher
+
+    # Create a default review session for standalone server
+    review_service.create_review_session(since="HEAD")
+    
+    yield
+    
+    # Clean up resources on shutdown
+    review_service.stop_event_listener()
+    file_watcher.stop()
+
+
+app = FastAPI(title="Git Diff Viewer", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify exact origins
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-BASE_DIR = Path(__file__).parent.parent.parent
 STATIC_DIR = Path(__file__).parent / "static"
-
-# Create review manager at module level (without event loop)
-review_manager = ReviewManager()
-
-# Mount static files
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-# Include the shared API router
-app.include_router(create_api_router())
-
-# Include the dynamic router at module level
-dynamic_router = review_manager.create_dynamic_router()
-app.include_router(dynamic_router)
-
-
-@app.on_event("startup")
-async def startup_event() -> None:
-    """Initialize the review manager with event loop and create default review session."""
-    loop = asyncio.get_running_loop()
-
-    # Initialize file watcher with the event loop
-    review_manager._initialize_file_watcher(loop)
-
-    # Create a default review session for standalone server
-    review_manager.create_review_session(commit=None, range=None, since="HEAD")
-
-
-@app.on_event("shutdown")
-async def shutdown_event() -> None:
-    """Clean up resources on shutdown."""
-    if review_manager.file_watcher:
-        review_manager.file_watcher.stop()
+# Include the review router
+app.include_router(create_review_router())
 
 
 def main() -> None:
     """Entry point for the backloop-server command."""
     parser = argparse.ArgumentParser(description="Git Diff Reviewer Server")
-    parser.add_argument(
-        "--port", type=int, help="Port to run the server on (default: random)"
-    )
+    parser.add_argument("--port", type=int, help="Port to run the server on (default: random)")
     args = parser.parse_args()
 
-    if args.port:
-        port = args.port
-        print(f"Review server available at: http://127.0.0.1:{port}")
-        uvicorn.run(app, host="127.0.0.1", port=port)
-    else:
+    port = args.port
+    if not port:
         sock, port = get_random_port()
         print(f"Review server available at: http://127.0.0.1:{port}")
         uvicorn.run(app, fd=sock.fileno())
+    else:
+        print(f"Review server available at: http://127.0.0.1:{port}")
+        uvicorn.run(app, host="127.0.0.1", port=port)
 
 
 if __name__ == "__main__":

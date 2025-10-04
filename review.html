@@ -1101,7 +1101,9 @@
             try {
                 // First, try to read the file content from the file system
                 // In a real implementation, this would be an API call
-                const response = await fetch(`/api/file-content?path=${encodeURIComponent(filePath)}`);
+                const pathParts = window.location.pathname.split('/');
+                const reviewId = pathParts[2];
+                const response = await fetch(`/review/${reviewId}/api/file-content?path=${encodeURIComponent(filePath)}`);
                 let fileContent = '';
                 
                 if (response.ok) {
@@ -1205,7 +1207,9 @@
                 // Create a unified diff patch
                 const patch = createUnifiedDiff(originalContent, newContent, filePath);
                 
-                const response = await fetch('/api/edit', {
+                const pathParts = window.location.pathname.split('/');
+                const reviewId = pathParts[2];
+                const response = await fetch(`/review/${reviewId}/api/edit`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

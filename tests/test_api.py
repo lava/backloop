@@ -1,268 +1,206 @@
-"""Integration tests for API endpoints."""
+"""Integration tests for review-scoped file endpoints."""
 
-import tempfile
 from pathlib import Path
+from typing import Tuple
+
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backloop.api.router import create_api_router
-from backloop.models import CommentRequest, FileEditRequest
+from backloop.api.review_router import create_review_router
+from backloop.event_manager import EventManager
+from backloop.models import FileEditRequest
+from backloop.services.mcp_service import McpService
+from backloop.services.review_service import ReviewService
 
 
 @pytest.fixture
-def api_client(git_repo_with_commits: Path) -> TestClient:
-    """Create a test client for the API."""
-    from fastapi import FastAPI
-
+def review_client(git_repo_with_commits: Path) -> Tuple[TestClient, str, Path]:
+    """Create a FastAPI test client with a review session bound to a git repo."""
     app = FastAPI()
-    router = create_api_router()
-    app.include_router(router)
+    event_manager = EventManager()
+    review_service = ReviewService(event_manager)
+    review_session = review_service.create_review_session(since="HEAD")
+    review_session.git_service.repo_path = git_repo_with_commits
+    review_session.refresh_diff()
+    mcp_service = McpService(review_service, event_manager)
 
-    return TestClient(app)
+    app.state.review_service = review_service
+    app.state.event_manager = event_manager
+    app.state.mcp_service = mcp_service
+
+    app.include_router(create_review_router())
+
+    client = TestClient(app)
+    return client, review_session.id, git_repo_with_commits
 
 
-class TestDiffEndpoints:
-    """Test diff-related API endpoints."""
+class TestReviewFileContent:
+    """Tests for retrieving file content within a review."""
 
-    def test_get_diff_requires_parameters(self, api_client: TestClient) -> None:
-        """Test that /api/diff requires commit or range parameter."""
-        response = api_client.get("/api/diff")
-        assert response.status_code == 400
-        assert "Must specify either 'commit' or 'range'" in response.json()["detail"]
+    def test_get_file_content_success(self, review_client: Tuple[TestClient, str, Path]) -> None:
+        client, review_id, _ = review_client
 
-    def test_get_diff_cannot_use_both_parameters(
-        self, api_client: TestClient
-    ) -> None:
-        """Test that /api/diff cannot use both commit and range."""
-        response = api_client.get("/api/diff?commit=HEAD&range=main..feature")
-        assert response.status_code == 400
-        assert "Cannot specify both" in response.json()["detail"]
+        response = client.get(f"/review/{review_id}/api/file-content?path=file1.txt")
 
-    def test_get_diff_mock(self, api_client: TestClient) -> None:
-        """Test getting mock diff data."""
-        response = api_client.get("/api/diff?mock=true&commit=HEAD")
         assert response.status_code == 200
+        assert "Line 1" in response.text
 
-        data = response.json()
-        assert "files" in data
-        assert isinstance(data["files"], list)
+    def test_get_file_content_absolute_path(self, review_client: Tuple[TestClient, str, Path]) -> None:
+        client, review_id, repo_path = review_client
+        abs_path = repo_path / "file1.txt"
 
-    def test_get_live_diff_default(
-        self, api_client: TestClient, git_repo_with_commits: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Test getting live diff (defaults to since HEAD)."""
-        # Change to repo directory
-        monkeypatch.chdir(git_repo_with_commits)
+        response = client.get(f"/review/{review_id}/api/file-content?path={abs_path}")
 
-        response = api_client.get("/api/diff/live")
         assert response.status_code == 200
+        assert "Line 2" in response.text
 
-        data = response.json()
-        assert "files" in data
-        assert "message" in data
-        assert "Live changes" in data["message"]
+    def test_get_file_content_not_found(self, review_client: Tuple[TestClient, str, Path]) -> None:
+        client, review_id, _ = review_client
 
-    def test_get_live_diff_mock(self, api_client: TestClient) -> None:
-        """Test getting mock live diff."""
-        response = api_client.get("/api/diff/live?mock=true")
-        assert response.status_code == 200
+        response = client.get(f"/review/{review_id}/api/file-content?path=missing.txt")
 
-        data = response.json()
-        assert "files" in data
-
-
-class TestFileEndpoints:
-    """Test file-related API endpoints."""
-
-    def test_edit_file_not_found(self, api_client: TestClient) -> None:
-        """Test editing a non-existent file."""
-        request = FileEditRequest(
-            filename="/nonexistent/file.txt",
-            patch="--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new\n",
-        )
-
-        response = api_client.post("/api/edit", json=request.model_dump())
         assert response.status_code == 404
-        assert "File not found" in response.json()["detail"]
 
-    def test_edit_file_success(
-        self, api_client: TestClient, git_repo_with_commits: Path
-    ) -> None:
-        """Test successfully editing a file."""
-        # Create a test file
-        test_file = git_repo_with_commits / "edit_test.txt"
-        test_file.write_text("old content\n")
+    def test_get_file_content_directory(self, review_client: Tuple[TestClient, str, Path]) -> None:
+        client, review_id, repo_path = review_client
+        directory = repo_path / "subdir"
+        directory.mkdir()
 
-        # Create a patch
-        patch = """--- a/edit_test.txt
-+++ b/edit_test.txt
-@@ -1 +1 @@
--old content
-+new content
+        response = client.get(f"/review/{review_id}/api/file-content?path=subdir")
+
+        assert response.status_code == 400
+
+    def test_get_file_content_outside_repo(self, review_client: Tuple[TestClient, str, Path]) -> None:
+        client, review_id, _ = review_client
+
+        response = client.get(f"/review/{review_id}/api/file-content?path=../outside.txt")
+
+        assert response.status_code == 400
+
+
+class TestReviewFileEdit:
+    """Tests for editing files via the review API."""
+
+    def test_edit_file_success(self, review_client: Tuple[TestClient, str, Path]) -> None:
+        client, review_id, repo_path = review_client
+        patch = """--- a/file1.txt
++++ b/file1.txt
+@@ -1,4 +1,4 @@
+-Line 1 modified
++Line 1 edited
+ Line 2
+ Line 3
+ Line 4
 """
 
-        request = FileEditRequest(
-            filename=str(test_file),
-            patch=patch,
+        request = FileEditRequest(filename="file1.txt", patch=patch)
+        response = client.post(
+            f"/review/{review_id}/api/edit",
+            json=request.model_dump(),
         )
 
-        response = api_client.post("/api/edit", json=request.model_dump())
         assert response.status_code == 200
-
         data = response.json()
         assert data["status"] == "success"
         assert "edited successfully" in data["message"]
+        assert (repo_path / "file1.txt").read_text() == "Line 1 edited\nLine 2\nLine 3\nLine 4\n"
 
-        # Verify file was actually edited
-        assert test_file.read_text() == "new content\n"
-
-    def test_edit_file_patch_conflict(
-        self, api_client: TestClient, git_repo_with_commits: Path
-    ) -> None:
-        """Test editing a file with a conflicting patch."""
-        # Create a test file
-        test_file = git_repo_with_commits / "conflict_test.txt"
-        test_file.write_text("different content\n")
-
-        # Create a patch that won't apply
-        patch = """--- a/conflict_test.txt
-+++ b/conflict_test.txt
-@@ -1 +1 @@
--old content
-+new content
+    def test_edit_file_absolute_path(self, review_client: Tuple[TestClient, str, Path]) -> None:
+        client, review_id, repo_path = review_client
+        abs_filename = repo_path / "file1.txt"
+        patch = f"""--- a/{abs_filename}
++++ b/{abs_filename}
+@@ -1,4 +1,4 @@
+-Line 1 modified
++Line 1 absolute
+ Line 2
+ Line 3
+ Line 4
 """
 
-        request = FileEditRequest(
-            filename=str(test_file),
-            patch=patch,
+        request = FileEditRequest(filename=str(abs_filename), patch=patch)
+        response = client.post(
+            f"/review/{review_id}/api/edit",
+            json=request.model_dump(),
         )
 
-        response = api_client.post("/api/edit", json=request.model_dump())
-        # Should fail because patch doesn't match
-        assert response.status_code in [400, 409]
-
-    def test_get_file_content(
-        self, api_client: TestClient, git_repo_with_commits: Path
-    ) -> None:
-        """Test getting file content."""
-        # Use existing file from fixture
-        file_path = git_repo_with_commits / "file1.txt"
-
-        response = api_client.get(f"/api/file-content?path={file_path}")
         assert response.status_code == 200
-        assert response.headers["content-type"].startswith("text/plain")
-        assert len(response.text) > 0
+        assert (repo_path / "file1.txt").read_text() == "Line 1 absolute\nLine 2\nLine 3\nLine 4\n"
 
-    def test_get_file_content_not_found(self, api_client: TestClient) -> None:
-        """Test getting content of non-existent file."""
-        response = api_client.get("/api/file-content?path=/nonexistent/file.txt")
-        # May return 404 or 500 depending on whether parent dir exists
-        assert response.status_code in [404, 500]
-
-    def test_get_file_content_directory(
-        self, api_client: TestClient, git_repo_with_commits: Path
-    ) -> None:
-        """Test that getting content of a directory fails."""
-        response = api_client.get(f"/api/file-content?path={git_repo_with_commits}")
-        # May return 400 or 500 depending on error handling
-        assert response.status_code in [400, 500]
-
-
-class TestAPIResponseFormats:
-    """Test API response formats and structures."""
-
-    def test_diff_response_structure(
-        self, api_client: TestClient, monkeypatch: pytest.MonkeyPatch, git_repo_with_commits: Path
-    ) -> None:
-        """Test that diff response has expected structure."""
-        monkeypatch.chdir(git_repo_with_commits)
-
-        response = api_client.get("/api/diff/live")
-        assert response.status_code == 200
-
-        data = response.json()
-
-        # Check top-level structure
-        assert "files" in data
-        assert "commit_hash" in data
-        assert "author" in data
-        assert "message" in data
-
-        # Check files structure if any exist
-        if len(data["files"]) > 0:
-            file = data["files"][0]
-            assert "path" in file
-            assert "additions" in file
-            assert "deletions" in file
-            assert "chunks" in file
-            assert "is_binary" in file
-            assert "is_renamed" in file
-
-    def test_edit_response_structure(
-        self, api_client: TestClient, git_repo_with_commits: Path
-    ) -> None:
-        """Test that edit response has expected structure."""
-        test_file = git_repo_with_commits / "edit_response_test.txt"
-        test_file.write_text("content\n")
-
-        patch = """--- a/edit_response_test.txt
-+++ b/edit_response_test.txt
-@@ -1 +1 @@
--content
+    def test_edit_file_not_found(self, review_client: Tuple[TestClient, str, Path]) -> None:
+        client, review_id, _ = review_client
+        patch = """--- a/missing.txt
++++ b/missing.txt
+@@ -0,0 +1,1 @@
 +new content
 """
 
-        request = FileEditRequest(filename=str(test_file), patch=patch)
-        response = api_client.post("/api/edit", json=request.model_dump())
+        request = FileEditRequest(filename="missing.txt", patch=patch)
+        response = client.post(
+            f"/review/{review_id}/api/edit",
+            json=request.model_dump(),
+        )
 
-        assert response.status_code == 200
+        assert response.status_code == 404
 
-        data = response.json()
-        assert "status" in data
-        assert "message" in data
-        assert "filename" in data
-        assert "patch_output" in data
+    def test_edit_file_patch_conflict(self, review_client: Tuple[TestClient, str, Path]) -> None:
+        client, review_id, repo_path = review_client
+        patch = """--- a/file1.txt
++++ b/file1.txt
+@@ -1,4 +1,4 @@
+-Line 1 original
++Line 1 conflict
+ Line 2
+ Line 3
+ Line 4
+"""
 
-    def test_error_response_structure(self, api_client: TestClient) -> None:
-        """Test that error responses have expected structure."""
-        response = api_client.get("/api/diff")
+        request = FileEditRequest(filename="file1.txt", patch=patch)
+        response = client.post(
+            f"/review/{review_id}/api/edit",
+            json=request.model_dump(),
+        )
+
+        assert response.status_code == 409
+        assert (repo_path / "file1.txt").read_text() == "Line 1 modified\nLine 2\nLine 3\nLine 4\n"
+
+    def test_edit_file_outside_repo(self, review_client: Tuple[TestClient, str, Path]) -> None:
+        client, review_id, _ = review_client
+        patch = """--- a/../outside.txt
++++ b/../outside.txt
+@@ -0,0 +1,1 @@
++danger
+"""
+
+        request = FileEditRequest(filename="../outside.txt", patch=patch)
+        response = client.post(
+            f"/review/{review_id}/api/edit",
+            json=request.model_dump(),
+        )
 
         assert response.status_code == 400
 
-        data = response.json()
-        assert "detail" in data
+    def test_edit_file_invalid_patch(self, review_client: Tuple[TestClient, str, Path]) -> None:
+        client, review_id, _ = review_client
+        request = FileEditRequest(filename="file1.txt", patch="invalid patch data")
+
+        response = client.post(
+            f"/review/{review_id}/api/edit",
+            json=request.model_dump(),
+        )
+
+        assert response.status_code == 400
 
 
-class TestAPIEdgeCases:
-    """Test edge cases and error handling."""
+class TestStaticAssets:
+    """Ensure static routes are exposed."""
 
-    def test_edit_relative_path_conversion(
-        self, api_client: TestClient, git_repo_with_commits: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Test that relative paths are converted to absolute."""
-        monkeypatch.chdir(git_repo_with_commits)
+    def test_favicon_route(self, review_client: Tuple[TestClient, str, Path]) -> None:
+        client, _, _ = review_client
 
-        test_file = git_repo_with_commits / "relative_test.txt"
-        test_file.write_text("content\n")
-
-        patch = """--- a/relative_test.txt
-+++ b/relative_test.txt
-@@ -1 +1 @@
--content
-+new content
-"""
-
-        # Use relative path
-        request = FileEditRequest(filename="relative_test.txt", patch=patch)
-        response = api_client.post("/api/edit", json=request.model_dump())
+        response = client.get("/favicon.ico")
 
         assert response.status_code == 200
-
-    def test_get_file_content_relative_path(
-        self, api_client: TestClient, git_repo_with_commits: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Test getting file content with relative path."""
-        monkeypatch.chdir(git_repo_with_commits)
-
-        response = api_client.get("/api/file-content?path=file1.txt")
-        assert response.status_code == 200
+        assert response.headers.get("content-type", "").startswith("image/")
+        assert len(response.content) > 0

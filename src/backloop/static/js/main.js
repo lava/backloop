@@ -146,6 +146,12 @@ function setupWebSocketHandlers() {
         // Could show a notification or update UI
     });
 
+    // Handle review updated events (e.g., file changes)
+    onEvent('review_updated', (event) => {
+        console.log('Review updated event received:', event);
+        reloadDiffData();
+    });
+
     // Handle file removed events
     onEvent('file_removed', async (event) => {
         console.log('File removed event received:', event);

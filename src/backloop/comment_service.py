@@ -22,7 +22,7 @@ class CommentService:
             self._rebuild_queue()
         )  # Rebuild queue from loaded comments
 
-    def add_comment(self, request: CommentRequest) -> Tuple[Comment, int]:
+    def add_comment(self, request: CommentRequest, review_id: str) -> Tuple[Comment, int]:
         """Add a new comment and return it with its queue position."""
         comment_id = str(uuid.uuid4())
 
@@ -32,6 +32,7 @@ class CommentService:
 
         comment = Comment(
             id=comment_id,
+            review_id=review_id,
             file_path=request.file_path,
             line_number=request.line_number,
             side=request.side,

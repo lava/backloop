@@ -72,6 +72,7 @@ class Comment(BaseModel):
     """A comment on a specific line."""
 
     id: str
+    review_id: str
     file_path: str
     line_number: int
     side: str  # "left" or "right"

@@ -73,3 +73,7 @@ class ReviewSession:
         else:
             assert self.since is not None
             return self.git_service.get_live_diff(self.since)
+
+    def refresh_diff(self) -> None:
+        """Recalculate the diff data for the session."""
+        self.diff = self._get_diff()

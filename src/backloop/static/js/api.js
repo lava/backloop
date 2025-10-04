@@ -36,18 +36,20 @@ export async function deleteComment(commentId) {
 }
 
 export async function getFileContent(filePath) {
-    const response = await fetch(`/api/file-content?path=${encodeURIComponent(filePath)}`);
-    
+    const reviewId = await getReviewId();
+    const response = await fetch(`/review/${reviewId}/api/file-content?path=${encodeURIComponent(filePath)}`);
+
     if (response.ok) {
         return response.text();
     }
-    
+
     console.warn('Could not read file, starting with empty content');
     return '';
 }
 
 export async function saveFileEdit(filePath, patch) {
-    const response = await fetch('/api/edit', {
+    const reviewId = await getReviewId();
+    const response = await fetch(`/review/${reviewId}/api/edit`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -66,25 +68,14 @@ export async function saveFileEdit(filePath, patch) {
     return response.json();
 }
 
-export async function fetchDiff(params) {
-    // Filter out null/undefined parameters and determine the endpoint
-    const cleanParams = {};
-    let endpoint = '/api/diff';
-
-    // If live mode, use the live endpoint and only pass 'since' and 'mock'
-    if (params.live === true || params.live === 'true') {
-        endpoint = '/api/diff/live';
-        if (params.since != null) cleanParams.since = params.since;
-        if (params.mock != null) cleanParams.mock = params.mock;
-    } else {
-        // For non-live mode, pass commit/range/mock
-        if (params.commit != null) cleanParams.commit = params.commit;
-        if (params.range != null) cleanParams.range = params.range;
-        if (params.mock != null) cleanParams.mock = params.mock;
+export async function fetchDiff() {
+    const reviewId = await getReviewId();
+    if (!reviewId) {
+        throw new Error("Could not determine review ID from URL.");
     }
 
-    const queryParams = new URLSearchParams(cleanParams);
-    const response = await fetch(`${endpoint}?${queryParams}`);
+    const endpoint = `/review/${reviewId}/api/diff`;
+    const response = await fetch(endpoint);
 
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
