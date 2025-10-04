@@ -183,7 +183,7 @@ async def resolve_comment(comment_id: str) -> str:
                     "comment_id": comment_id,
                     "file_path": comment.file_path,
                     "line_number": comment.line_number,
-                    "status": CommentStatus.RESOLVED,
+                    "status": CommentStatus.RESOLVED.value,
                 },
                 review_id=review_session.id,
             )

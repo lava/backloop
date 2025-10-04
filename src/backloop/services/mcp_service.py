@@ -43,18 +43,20 @@ class McpService:
         if settings.debug:
             print("[DEBUG] MCP service awaiting comments...")
 
+        current_review = self._review_service.get_most_recent_review()
+        current_review_id = current_review.id if current_review else None
+
         while True:
             # Check if any approved review has no pending comments
             if not self._pending_comments.empty():
                 # Prioritize draining the queue
                 pass
             else:
-                for review_id, is_approved in self._review_approved.items():
-                    if is_approved:
-                        # This logic is simplified. In a real scenario, you'd want to check
-                        # if there are any outstanding comments for THIS review before approving.
-                        # For now, if any review is approved and the queue is empty, we proceed.
-                        return ReviewApproved(review_id=review_id, timestamp=datetime.now().isoformat())
+                # Only return approved if it matches the current review
+                if current_review_id and self._review_approved.get(current_review_id):
+                    # Clear the approval flag
+                    del self._review_approved[current_review_id]
+                    return ReviewApproved(review_id=current_review_id, timestamp=datetime.now().isoformat())
 
             try:
                 comment = await asyncio.wait_for(self._pending_comments.get(), timeout=1.0)
@@ -69,7 +71,7 @@ class McpService:
                     # This might be redundant if the agent resolves it, but good for UI
                     await self._event_manager.emit_event(
                         EventType.COMMENT_DEQUEUED,
-                        {"comment_id": comment.id, "status": CommentStatus.IN_PROGRESS},
+                        {"comment_id": comment.id, "status": CommentStatus.IN_PROGRESS.value},
                         review_id=comment.review_id,
                     )
                 return comment

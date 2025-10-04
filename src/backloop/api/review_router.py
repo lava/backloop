@@ -118,13 +118,31 @@ def create_review_router() -> APIRouter:
         review_session = review_service.get_review_session(review_id)
         if not review_session:
             raise HTTPException(status_code=404, detail="Review not found")
-        
+
         comment, queue_pos = review_session.comment_service.add_comment(payload, review_id)
         mcp_service.add_comment_to_queue(comment)
 
         return SuccessResponse(
             data={"comment": comment.model_dump(), "queue_position": queue_pos},
             message="Comment created successfully",
+        )
+
+    @router.delete("/review/{review_id}/api/comments/{comment_id}")
+    async def delete_review_comment(
+        request: Request, review_id: str = Path(...), comment_id: str = Path(...)
+    ) -> SuccessResponse[dict]:
+        review_service = request.app.state.review_service
+        review_session = review_service.get_review_session(review_id)
+        if not review_session:
+            raise HTTPException(status_code=404, detail="Review not found")
+
+        success = review_session.comment_service.delete_comment(comment_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Comment not found")
+
+        return SuccessResponse(
+            data={"comment_id": comment_id},
+            message="Comment deleted successfully",
         )
 
     @router.post("/review/{review_id}/approve")
