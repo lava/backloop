@@ -533,27 +533,26 @@ export async function approveReview() {
         const reviewId = await api.getReviewId();
         await api.approveReview(reviewId);
 
-        // Update UI to show approved state
-        const approveButton = document.getElementById('approve-review-btn');
-        if (approveButton) {
-            approveButton.textContent = 'Review Approved';
-            approveButton.disabled = true;
-        }
-
         console.log('Review approved successfully');
 
-        // Try to close the tab after a brief delay to allow UI update
-        setTimeout(() => {
-            // Try to close - this only works if tab was opened via window.open()
-            window.close();
+        // Try to close the tab
+        window.close();
 
-            // If close didn't work, update button to indicate user can close manually
-            setTimeout(() => {
-                if (approveButton && !document.hidden) {
-                    approveButton.textContent = 'Review Approved - You can close this tab';
-                }
-            }, 100);
-        }, 500);
+        // If we're still here after a short delay, the close didn't work
+        // Show a full-screen approval message instead
+        setTimeout(() => {
+            document.body.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: center; height: 100vh; background: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                    <div style="text-align: center;">
+                        <svg viewBox="0 0 16 16" fill="#3fb950" width="64" height="64" style="margin-bottom: 20px;">
+                            <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"/>
+                        </svg>
+                        <h1 style="font-size: 32px; margin: 0 0 10px 0;">Review Approved</h1>
+                        <p style="font-size: 16px; color: #8b949e;">You can close this tab</p>
+                    </div>
+                </div>
+            `;
+        }, 100);
     } catch (error) {
         console.error('Error approving review:', error);
         alert('Failed to approve review: ' + error.message);
