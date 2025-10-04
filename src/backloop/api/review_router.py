@@ -65,12 +65,38 @@ def create_review_router() -> APIRouter:
         return FileResponse(review_path)
 
     @router.get("/review/{review_id}/api/diff")
-    async def get_review_diff(request: Request, review_id: str = Path(...)) -> GitDiff:
+    async def get_review_diff(
+        request: Request,
+        review_id: str = Path(...),
+        commit: str | None = Query(None),
+        range: str | None = Query(None),
+        live: bool = Query(False),
+        since: str | None = Query(None),
+    ) -> GitDiff:
         review_service = request.app.state.review_service
         review_session = review_service.get_review_session(review_id)
         if not review_session:
             raise HTTPException(status_code=404, detail="Review not found")
-        return review_session.diff
+
+        # Check if query parameters are provided - if so, use them to compute the diff
+        param_count = sum(1 for p in [commit, range, live] if p)
+
+        if param_count > 1:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot specify multiple parameters. Use exactly one of: commit, range, or live"
+            )
+
+        if commit:
+            return review_session.git_service.get_commit_diff(commit)
+        elif range:
+            return review_session.git_service.get_range_diff(range)
+        elif live:
+            since_param = since or "HEAD"
+            return review_session.git_service.get_live_diff(since_param)
+        else:
+            # No query parameters provided, use the session's cached diff
+            return review_session.diff
 
     @router.get("/review/{review_id}/api/comments")
     async def get_review_comments(
@@ -199,7 +225,7 @@ def create_review_router() -> APIRouter:
         )
 
     @router.websocket("/review/{review_id}/ws")
-    async def websocket_endpoint(websocket: WebSocket, review_id: str = Path(...)):
+    async def websocket_endpoint(websocket: WebSocket, review_id: str = Path(...)) -> None:
         review_service = websocket.app.state.review_service
         event_manager = websocket.app.state.event_manager
         if not review_service.get_review_session(review_id):
