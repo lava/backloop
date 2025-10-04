@@ -5,6 +5,7 @@ import subprocess
 
 from fastapi import APIRouter, Path, HTTPException, Query, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import FileResponse, RedirectResponse, PlainTextResponse
+from pydantic import BaseModel
 
 from backloop.models import Comment, CommentRequest, FileEditRequest, GitDiff, CommentStatus
 from backloop.api.responses import SuccessResponse
@@ -12,7 +13,7 @@ from backloop.event_manager import EventType
 from backloop.config import settings
 
 
-class ApprovalRequest(CommentRequest):
+class ApprovalRequest(BaseModel):
     timestamp: str
 
 

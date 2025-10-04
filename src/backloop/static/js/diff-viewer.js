@@ -508,7 +508,8 @@ export async function initializeDiffViewer() {
 
     // Load diff data
     try {
-        const diffData = await api.fetchDiff();
+        const params = { commit, range, since, live, mock };
+        const diffData = await api.fetchDiff(params);
 
         if (diffData && diffData.files) {
             // Build and render file tree
@@ -604,7 +605,8 @@ export async function refreshFile(filePath) {
         const live = urlParams.get('live') === 'true';
         const mock = urlParams.get('mock') === 'true';
 
-        const diffData = await api.fetchDiff();
+        const params = { commit, range, since, live, mock };
+        const diffData = await api.fetchDiff(params);
 
         if (!diffData || !diffData.files) {
             console.error('Failed to fetch updated diff');

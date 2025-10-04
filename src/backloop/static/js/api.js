@@ -68,13 +68,21 @@ export async function saveFileEdit(filePath, patch) {
     return response.json();
 }
 
-export async function fetchDiff() {
+export async function fetchDiff(params = {}) {
     const reviewId = await getReviewId();
     if (!reviewId) {
         throw new Error("Could not determine review ID from URL.");
     }
 
-    const endpoint = `/review/${reviewId}/api/diff`;
+    // Build query string from params
+    const queryParams = new URLSearchParams();
+    if (params.commit) queryParams.set('commit', params.commit);
+    if (params.range) queryParams.set('range', params.range);
+    if (params.live) queryParams.set('live', params.live);
+    if (params.since) queryParams.set('since', params.since);
+
+    const queryString = queryParams.toString();
+    const endpoint = `/review/${reviewId}/api/diff${queryString ? `?${queryString}` : ''}`;
     const response = await fetch(endpoint);
 
     if (!response.ok) {
