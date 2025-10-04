@@ -25,7 +25,7 @@ and Claude automatically sees and addresses them.
 To add the MCP server to Claude Code, run:
 
 ```bash
-claude mcp add local-review -- uvx run --from backloop backloop-mcp
+claude mcp add local-review -- uvx --from backloop backloop-mcp
 ```
 
 ## Standalone Usage
