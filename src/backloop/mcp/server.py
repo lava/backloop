@@ -1,24 +1,87 @@
 import asyncio
-from typing import List, Union
+import threading
+from typing import Union
+from pathlib import Path
 
+import uvicorn
 from mcp.server.fastmcp import FastMCP
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from backloop.models import Comment, ReviewApproved, CommentStatus
-from backloop.review_manager import ReviewManager, PendingComment
-from backloop.event_manager import EventType
+from backloop.event_manager import EventManager, EventType
+from backloop.services.review_service import ReviewService
+from backloop.services.mcp_service import McpService
+from backloop.api.review_router import create_review_router
+from backloop.file_watcher import FileWatcher
+from backloop.utils.common import get_random_port
 
-# MCP server and review manager
+# MCP server and services
 mcp = FastMCP("backloop-mcp")
-review_manager: ReviewManager | None = None
+event_manager: EventManager | None = None
+review_service: ReviewService | None = None
+mcp_service: McpService | None = None
+web_server_port: int | None = None
+web_server_thread: threading.Thread | None = None
 
 
-def get_review_manager() -> ReviewManager:
-    """Get or create the review manager with event loop."""
-    global review_manager
-    if review_manager is None:
+def get_services() -> tuple[ReviewService, McpService, EventManager]:
+    """Get or create the services with event loop."""
+    global event_manager, review_service, mcp_service
+    if event_manager is None:
         loop = asyncio.get_running_loop()
-        review_manager = ReviewManager(loop)
-    return review_manager
+        event_manager = EventManager()
+        review_service = ReviewService(event_manager)
+        mcp_service = McpService(review_service, event_manager, loop)
+    assert review_service is not None
+    assert mcp_service is not None
+    return review_service, mcp_service, event_manager
+
+
+def start_web_server() -> int:
+    """Start the web server in a background thread if not already running."""
+    global web_server_port, web_server_thread
+
+    if web_server_port is not None:
+        return web_server_port
+
+    review_svc, mcp_svc, event_mgr = get_services()
+
+    # Create FastAPI app
+    app = FastAPI(title="Git Diff Viewer", version="0.1.0")
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    STATIC_DIR = Path(__file__).parent.parent / "static"
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+    # Store services in app state
+    app.state.review_service = review_svc
+    app.state.mcp_service = mcp_svc
+    app.state.event_manager = event_mgr
+
+    # Include the review router
+    app.include_router(create_review_router())
+
+    # Get random port
+    sock, port = get_random_port()
+    web_server_port = port
+
+    # Start server in background thread
+    def run_server() -> None:
+        uvicorn.run(app, fd=sock.fileno())
+
+    web_server_thread = threading.Thread(target=run_server, daemon=True)
+    web_server_thread.start()
+
+    return port
 
 
 @mcp.tool()
@@ -45,16 +108,16 @@ def startreview(
      - Reviewing changes just after committing changes: startreview(since='HEAD~1')
      - Reviewing a PR before pushing it: startreview(range='origin/main..HEAD')
     """
-    # Get review manager
-    manager = get_review_manager()
+    # Get services
+    review_svc, mcp_svc, event_mgr = get_services()
 
     # Create a new review session
-    review_session = manager.create_review_session(
+    review_session = review_svc.create_review_session(
         commit=commit, range=range, since=since
     )
 
     # Start web server if not already running and get URL
-    port = manager.start_web_server()
+    port = start_web_server()
     review_url = f"http://127.0.0.1:{port}/review/{review_session.id}"
 
     return f"""Review session started at {review_url}."""
@@ -68,22 +131,21 @@ async def await_comments() -> Union[dict, str]:
     - A comment is available (returns dict with comment details)
     - The review is approved and no comments remain (returns "REVIEW APPROVED")
     """
-    manager = get_review_manager()
-    result = await manager.await_comments()
+    review_svc, mcp_svc, event_mgr = get_services()
+    result = await mcp_svc.await_comments()
 
     if isinstance(result, ReviewApproved):
         return "REVIEW APPROVED"
-    elif isinstance(result, PendingComment):
-        comment = result.comment
+    elif isinstance(result, Comment):
         # Return comment with file name, line number, and review context
         return {
             "review_id": result.review_id,
-            "id": comment.id,
-            "file_path": comment.file_path,
-            "line_number": comment.line_number,
-            "side": comment.side,
-            "content": comment.content,
-            "author": comment.author,
+            "id": result.id,
+            "file_path": result.file_path,
+            "line_number": result.line_number,
+            "side": result.side,
+            "content": result.content,
+            "author": result.author,
         }
     else:
         # This shouldn't happen but handle it gracefully
@@ -99,13 +161,13 @@ async def resolve_comment(comment_id: str) -> str:
 
     Returns a status message indicating success or failure.
     """
-    manager = get_review_manager()
+    review_svc, mcp_svc, event_mgr = get_services()
 
     # Find the review session that contains this comment
     comment_found = False
     updated_comment = None
 
-    for review_session in manager.active_reviews.values():
+    for review_session in review_svc.active_reviews.values():
         comment = review_session.comment_service.get_comment(comment_id)
         if comment:
             # Update the comment status to RESOLVED
@@ -115,7 +177,7 @@ async def resolve_comment(comment_id: str) -> str:
             comment_found = True
 
             # Emit event for comment being resolved
-            await manager.event_manager.emit_event(
+            await event_mgr.emit_event(
                 EventType.COMMENT_RESOLVED,
                 {
                     "comment_id": comment_id,
