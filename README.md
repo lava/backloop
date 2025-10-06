@@ -4,7 +4,8 @@
 
 # Backloop Code Review
 
-A fully local code review platform for creating high-quality AI-assisted PRs.
+A fully local code review platform with a built-in feedback loop, to make
+iterating on agentic code output efficient and fun.
 
 ## Overview
 
@@ -35,20 +36,28 @@ For the user, the workflow looks like this:
 2. Leave comments with feedback, or edit small touch-ups directly
 3. When satisfied with the code, approve the review.
 
+A review will have a url like `http://127.0.0.1:52267/review/c0837b48/view?since=HEAD~1&live=true`,
+you can adjust the query parameters to get a different view on the repository.
+See the reference section below to learn which parameters exist.
+
+When in "live" mode, that is when the `live` parameter is set to true, the
+review willl also show untracked files and non-staged changes in the current
+working directory, and include an "edit directly" button to make small changes
+directly, without waiting for a round of thinking.
+
 ## Installation
 
-To add the MCP server to Claude Code, run:
+To add the MCP server to Claude Code use
 
 ```bash
 claude mcp add local-review -- uvx --from backloop backloop-mcp
 ```
 
-or the equivalent for your LLM frontend of choice.
+or run the equivalent command for the LLM frontend of your choice.
 
 ## Standalone Usage
 
-You can also use Backloop without an agent, as a standalone local diff
-viewer:
+You can also use Backloop without an agent, as a standalone local diff viewer:
 
 ```bash
 uvx --from backloop server
