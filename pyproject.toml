@@ -4,9 +4,9 @@ version = "0.1.0"
 description = "A web-based git diff viewer and review tool with MCP server integration"
 readme = "README.md"
 authors = [
-    { name = "Benno Evers", email = "benno.martin.evers@gmail.com" }
+    { name = "Benno Evers", email = "benno@bmevers.de" }
 ]
-license = "GPL-2.0"
+license = "AGPL-3.0"
 requires-python = ">=3.13"
 dependencies = [
     "pydantic>=2.11.7",
@@ -19,7 +19,7 @@ keywords = ["git", "diff", "review", "mcp", "fastapi", "code-review"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: GNU General Public License v2 (GPLv2)",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Version Control :: Git",
