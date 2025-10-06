@@ -1,12 +1,14 @@
+<div align="center">
+<img src="logo.png" alt="Logo">
+</div>
+
 # Backloop Code Review
 
 A fully local code review platform for creating high-quality AI-assisted PRs.
 
-![Logo](logo.png)
-
 ## Overview
 
-Coding assistants are great at some things, but they are still lacking when
+Coding assistants do great on many tasks, but they are still lacking when
 working on big, established code bases. In particular, getting code from a
 working prototype to review-grade version that meets all coding standards often
 requires a significant amount of manual polishing, that can easily eat up
