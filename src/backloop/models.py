@@ -81,6 +81,7 @@ class Comment(BaseModel):
     timestamp: str
     queue_position: int | None = None
     status: CommentStatus = CommentStatus.PENDING
+    reply_message: str | None = None
 
 
 class CommentRequest(BaseModel):

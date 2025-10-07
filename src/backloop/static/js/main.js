@@ -257,10 +257,34 @@ function updateCommentStatus(data) {
         // Update comment appearance for resolved status
         commentThread.style.opacity = '0.7';
         commentThread.style.borderColor = '#1a7f37';
+        commentThread.style.backgroundColor = '#e6f4ea';
 
         const commentBody = commentThread.querySelector('.comment-body');
         if (commentBody) {
             commentBody.style.textDecoration = 'line-through';
+        }
+
+        if (data.reply_message) {
+            const comment = commentThread.querySelector('.comment');
+            if (comment) {
+                // Remove existing reply message if any
+                const existingReply = comment.querySelector('.resolution-note');
+                if (existingReply) {
+                    existingReply.remove();
+                }
+
+                const replyMessageHtml = `
+                    <div class="resolution-note" style="margin-top: 8px; padding: 8px; background: #ffffff; border-left: 3px solid #1a7f37; border-radius: 4px;">
+                        <div style="font-size: 12px; color: #57606a; margin-bottom: 4px; font-weight: 600;">
+                            Resolution Note:
+                        </div>
+                        <div style="color: #1f2328;">
+                            ${escapeHtml(data.reply_message)}
+                        </div>
+                    </div>
+                `;
+                comment.insertAdjacentHTML('beforeend', replyMessageHtml);
+            }
         }
     }
 
@@ -270,6 +294,13 @@ function updateCommentStatus(data) {
             timestampElement.insertAdjacentHTML('afterend', statusBadge);
         }
     }
+}
+
+// Utility function for escaping HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 // Make functions globally available for inline event handlers

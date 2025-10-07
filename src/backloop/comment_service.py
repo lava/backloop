@@ -91,14 +91,16 @@ class CommentService:
         return len(self._comment_queue)
 
     def update_comment_status(
-        self, comment_id: str, status: CommentStatus
+        self, comment_id: str, status: CommentStatus, reply_message: str | None = None
     ) -> Comment | None:
-        """Update a comment's status."""
+        """Update a comment's status and optionally add a reply message."""
         comment = self._comments.get(comment_id)
         if comment:
             comment.status = status
             if status == CommentStatus.RESOLVED:
                 comment.queue_position = None
+            if reply_message is not None:
+                comment.reply_message = reply_message
             self._save_comments()
         return comment
 

@@ -166,11 +166,14 @@ async def await_comments() -> Union[dict, str]:
 
 
 @mcp.tool()
-async def resolve_comment(comment_id: str) -> str:
+async def resolve_comment(comment_id: str, reply_message: str | None = None) -> str:
     """Mark a comment as resolved and emit an event to update the frontend.
 
     Parameters:
     - comment_id: The ID of the comment to mark as resolved
+    - reply_message: OPTIONAL message to include with the resolution. Only use
+      this when adding non-trivial context or encountering unforeseen issues.
+      Do not send trivial replies like "ok", "done", "fixed the issue".
 
     Returns a status message indicating success or failure.
     """
@@ -183,9 +186,9 @@ async def resolve_comment(comment_id: str) -> str:
     for review_session in review_svc.active_reviews.values():
         comment = review_session.comment_service.get_comment(comment_id)
         if comment:
-            # Update the comment status to RESOLVED
+            # Update the comment status to RESOLVED and add reply message if provided
             updated_comment = review_session.comment_service.update_comment_status(
-                comment_id, CommentStatus.RESOLVED
+                comment_id, CommentStatus.RESOLVED, reply_message=reply_message
             )
             comment_found = True
 
@@ -197,12 +200,15 @@ async def resolve_comment(comment_id: str) -> str:
                     "file_path": comment.file_path,
                     "line_number": comment.line_number,
                     "status": CommentStatus.RESOLVED.value,
+                    "reply_message": reply_message,
                 },
                 review_id=review_session.id,
             )
             break
 
     if comment_found and updated_comment:
+        if reply_message:
+            return f"Comment {comment_id} has been marked as resolved with reply: {reply_message}"
         return f"Comment {comment_id} has been marked as resolved."
     else:
         return f"Comment {comment_id} not found in any active review session."

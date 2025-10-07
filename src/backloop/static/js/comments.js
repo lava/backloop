@@ -178,6 +178,7 @@ export function displayCommentWithQueue(comment, lineNumber, side, lineElement) 
         // Update comment appearance for resolved status
         commentDiv.style.opacity = '0.7';
         commentDiv.style.borderColor = '#1a7f37';
+        commentDiv.style.backgroundColor = '#e6f4ea';
     } else if (comment.queuePosition) {
         statusBadge = `
             <span style="background: #0969da; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">
@@ -185,7 +186,18 @@ export function displayCommentWithQueue(comment, lineNumber, side, lineElement) 
             </span>
         `;
     }
-    
+
+    const replyMessageHtml = comment.reply_message ? `
+        <div style="margin-top: 8px; padding: 8px; background: #ffffff; border-left: 3px solid #1a7f37; border-radius: 4px;">
+            <div style="font-size: 12px; color: #57606a; margin-bottom: 4px; font-weight: 600;">
+                Resolution Note:
+            </div>
+            <div style="color: #1f2328;">
+                ${escapeHtml(comment.reply_message)}
+            </div>
+        </div>
+    ` : '';
+
     commentDiv.innerHTML = `
         <div class="comment">
             <div class="comment-header">
@@ -199,6 +211,7 @@ export function displayCommentWithQueue(comment, lineNumber, side, lineElement) 
                 </button>
             </div>
             <div class="comment-body" ${comment.status === 'resolved' ? 'style="text-decoration: line-through;"' : ''}>${escapeHtml(comment.content)}</div>
+            ${replyMessageHtml}
         </div>
     `;
     
