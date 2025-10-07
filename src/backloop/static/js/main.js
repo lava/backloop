@@ -1,7 +1,7 @@
 // Main entry point for the review application
 
 import { initializeDiffViewer, approveReview, showRefreshButton, refreshFile } from './diff-viewer.js';
-import { loadAndDisplayComments, isUserWritingComment } from './comments.js';
+import { loadAndDisplayComments, isUserWritingComment, preserveComments, restoreComments } from './comments.js';
 import { openFileEditor, closeEditModal, saveFileEdit } from './file-editor.js';
 import { initializeWebSocket, onEvent } from './websocket-client.js';
 import * as api from './api.js';
@@ -24,6 +24,9 @@ function removeFileFromView(filePath) {
 
 async function reloadDiffData() {
     try {
+        // Preserve existing comments before clearing the diff
+        const preservedComments = preserveComments();
+
         // Parse query parameters to get current diff settings
         const urlParams = new URLSearchParams(window.location.search);
         const commit = urlParams.get('commit');
@@ -48,6 +51,9 @@ async function reloadDiffData() {
 
             // Update diff content
             renderDiffContent(diffData.files);
+
+            // Restore comments after diff has been re-rendered
+            restoreComments(preservedComments);
 
             console.log('Diff data reloaded successfully');
         }

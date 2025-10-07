@@ -311,6 +311,56 @@ export async function openEditDirectly(filePath, lineNumber, commentForm) {
     await openFileEditor(filePath, parseInt(lineNumber));
 }
 
+export function preserveComments() {
+    const preservedComments = [];
+    const commentThreads = document.querySelectorAll('.comment-thread');
+
+    commentThreads.forEach(thread => {
+        const commentId = thread.dataset.commentId;
+        if (!commentId) return;
+
+        // Store the entire outer HTML for this comment thread
+        preservedComments.push({
+            commentId: commentId,
+            html: thread.outerHTML,
+            // Also store parent line element ID to know where to re-insert
+            lineElementId: thread.previousElementSibling?.id
+        });
+    });
+
+    return preservedComments;
+}
+
+export function restoreComments(preservedComments) {
+    let restoredCount = 0;
+
+    preservedComments.forEach(preserved => {
+        const lineElement = document.getElementById(preserved.lineElementId);
+        if (!lineElement || !lineElement.parentElement) {
+            console.warn(`Could not find line element ${preserved.lineElementId} to restore comment ${preserved.commentId}`);
+            return;
+        }
+
+        // Create a temporary div to parse the HTML
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = preserved.html;
+        const commentThread = tempDiv.firstChild;
+
+        // Re-attach event listener to delete button
+        const deleteBtn = commentThread.querySelector('.comment-delete-btn');
+        if (deleteBtn) {
+            const commentId = preserved.commentId;
+            deleteBtn.addEventListener('click', () => deleteComment(commentId, deleteBtn));
+        }
+
+        // Insert after the line element
+        lineElement.parentElement.insertBefore(commentThread, lineElement.nextSibling);
+        restoredCount++;
+    });
+
+    console.log(`Restored ${restoredCount} of ${preservedComments.length} comments`);
+}
+
 // Check if user is currently writing a comment on a file
 export function isUserWritingComment(filePath) {
     return activeCommentForms.has(filePath);
