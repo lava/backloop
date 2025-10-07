@@ -3,6 +3,7 @@ import asyncio
 import uvicorn
 from pathlib import Path
 from contextlib import asynccontextmanager
+from typing import AsyncIterator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,7 +18,7 @@ from backloop.file_watcher import FileWatcher
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage the application's lifespan."""
     loop = asyncio.get_running_loop()
     
@@ -27,8 +28,12 @@ async def lifespan(app: FastAPI):
     mcp_service = McpService(review_service, event_manager, loop)
     
     # Initialize file watcher
+    with open("/tmp/backloop-debug.txt", "a") as f:
+        f.write(f"[DEBUG] Initializing file watcher for directory: {Path.cwd()}\n")
     file_watcher = FileWatcher(event_manager, loop)
     file_watcher.start_watching(str(Path.cwd()))
+    with open("/tmp/backloop-debug.txt", "a") as f:
+        f.write(f"[DEBUG] File watcher initialization complete\n")
 
     # Start the review service's event listener
     review_service.start_event_listener()

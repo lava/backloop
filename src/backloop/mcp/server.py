@@ -22,18 +22,31 @@ mcp = FastMCP("backloop-mcp")
 event_manager: EventManager | None = None
 review_service: ReviewService | None = None
 mcp_service: McpService | None = None
+file_watcher: FileWatcher | None = None
 web_server_port: int | None = None
 web_server_thread: threading.Thread | None = None
 
 
 def get_services() -> tuple[ReviewService, McpService, EventManager]:
     """Get or create the services with event loop."""
-    global event_manager, review_service, mcp_service
+    global event_manager, review_service, mcp_service, file_watcher
     if event_manager is None:
+        with open("/tmp/backloop-debug.txt", "a") as f:
+            f.write(f"[DEBUG] Initializing MCP services for directory: {Path.cwd()}\n")
         loop = asyncio.get_running_loop()
         event_manager = EventManager()
         review_service = ReviewService(event_manager)
         mcp_service = McpService(review_service, event_manager, loop)
+
+        # Initialize file watcher
+        file_watcher = FileWatcher(event_manager, loop)
+        file_watcher.start_watching(str(Path.cwd()))
+
+        # Start the review service's event listener
+        review_service.start_event_listener()
+
+        with open("/tmp/backloop-debug.txt", "a") as f:
+            f.write(f"[DEBUG] MCP services initialization complete\n")
     assert review_service is not None
     assert mcp_service is not None
     return review_service, mcp_service, event_manager

@@ -16,6 +16,11 @@ from backloop.event_manager import EventManager, EventType
 import pathspec
 
 
+def debug_write(message: str) -> None:
+    """Write debug message to /tmp/backloop-debug.txt."""
+    pass
+
+
 class ReviewFileSystemEventHandler(FileSystemEventHandler):
     """File system event handler for the review system."""
 
@@ -73,8 +78,10 @@ class ReviewFileSystemEventHandler(FileSystemEventHandler):
         """Handle file modification events."""
         if isinstance(event, FileModifiedEvent) and not event.is_directory:
             file_path = str(Path(str(event.src_path)).resolve())
+            debug_write(f"[DEBUG] File modification detected: {file_path}")
 
             if self._should_emit_event(file_path):
+                debug_write(f"[DEBUG] Emitting FILE_CHANGED event for: {file_path}")
                 asyncio.run_coroutine_threadsafe(
                     self.event_manager.emit_event(
                         EventType.FILE_CHANGED,
@@ -86,6 +93,8 @@ class ReviewFileSystemEventHandler(FileSystemEventHandler):
                     ),
                     self.loop,
                 )
+            else:
+                debug_write(f"[DEBUG] Skipping event for: {file_path} (gitignored or debounced)")
 
     def on_deleted(self, event: FileSystemEvent) -> None:
         """Handle file deletion events."""
@@ -169,8 +178,9 @@ class FileWatcher:
             watch_handle = self.observer.schedule(handler, directory, recursive=True)
             self.watch_handles[directory] = watch_handle
             self._is_watching = True
+            debug_write(f"[DEBUG] Started watching directory: {directory}")
         except Exception as e:
-            print(f"Warning: Could not watch directory {directory}: {e}")
+            debug_write(f"[ERROR] Could not watch directory {directory}: {e}")
 
     def stop(self) -> None:
         """Stop the file watcher."""

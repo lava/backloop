@@ -47,11 +47,7 @@ async function reloadDiffData() {
             }
 
             // Update diff content
-            const diffContainer = document.getElementById('diff-container');
-            if (diffContainer) {
-                diffContainer.innerHTML = '';
-                renderDiffContent(diffData.files);
-            }
+            renderDiffContent(diffData.files);
 
             console.log('Diff data reloaded successfully');
         }
