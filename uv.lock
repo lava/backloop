@@ -35,11 +35,12 @@ wheels = [
 
 [[package]]
 name = "backloop"
-version = "0.1.0"
+version = "0.2.1"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
     { name = "mcp" },
+    { name = "pathspec" },
     { name = "pydantic" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "watchdog" },
@@ -64,6 +65,7 @@ test = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115.6" },
     { name = "mcp", specifier = ">=1.2.0" },
+    { name = "pathspec", specifier = ">=0.12.1" },
     { name = "pydantic", specifier = ">=2.11.7" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.0" },
     { name = "watchdog", specifier = ">=6.0.0" },
