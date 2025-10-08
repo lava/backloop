@@ -22,3 +22,25 @@ Use empty __init__.py files and keep them empty. All code goes into
 separate files.
 
 Alway use package-relative imports of the form `from my_project.foo import bar`
+
+# Testing
+
+Before committing code changes, always run the test suite to ensure nothing is broken:
+
+```bash
+uv run pytest
+```
+
+For faster feedback during development, you can run specific test files:
+
+```bash
+# Run only unit tests (fast)
+uv run pytest tests/test_models.py tests/test_git_service.py
+
+# Run E2E integration tests (slower, but comprehensive)
+uv run pytest tests/test_e2e_integration.py
+```
+
+The E2E integration tests start a real server and test the complete frontend + backend
+integration, so they take longer to run but provide the most confidence that everything
+works together correctly.
