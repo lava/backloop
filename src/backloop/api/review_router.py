@@ -41,6 +41,13 @@ def create_review_router() -> APIRouter:
             raise HTTPException(status_code=404, detail="Favicon not found")
         return FileResponse(favicon_path, media_type="image/x-icon")
 
+    @router.get("/static/favicon.svg")
+    async def get_favicon_svg() -> FileResponse:
+        favicon_path = STATIC_DIR / "favicon.svg"
+        if not favicon_path.exists():
+            raise HTTPException(status_code=404, detail="Favicon not found")
+        return FileResponse(favicon_path, media_type="image/svg+xml")
+
     @router.get("/")
     async def redirect_to_latest_review(request: Request) -> RedirectResponse:
         review_service = request.app.state.review_service
