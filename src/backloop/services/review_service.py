@@ -19,9 +19,10 @@ class ReviewService:
         commit: str | None = None,
         range: str | None = None,
         since: str | None = None,
+        title: str | None = None,
     ) -> ReviewSession:
         """Create a new review session and store it."""
-        review_session = ReviewSession(commit=commit, range=range, since=since)
+        review_session = ReviewSession(commit=commit, range=range, since=since, title=title)
         self.active_reviews[review_session.id] = review_session
         return review_session
 

@@ -15,6 +15,7 @@ class ReviewSession:
         commit: str | None = None,
         range: str | None = None,
         since: str | None = None,
+        title: str | None = None,
     ) -> None:
         """Initialize a review session.
 
@@ -22,11 +23,13 @@ class ReviewSession:
         - commit: Review changes for a specific commit
         - range: Review changes for a commit range
         - since: Review live changes since a commit
+        - title: Optional title for the review
         """
         self.id = str(uuid.uuid4())[:8]
         self.commit = commit
         self.range = range
         self.since = since
+        self.title = title
         self.created_at = time.time()
 
         self.is_live = since is not None or (commit is None and range is None)

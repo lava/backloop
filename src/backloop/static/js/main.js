@@ -1,6 +1,6 @@
 // Main entry point for the review application
 
-import { initializeDiffViewer, approveReview, showRefreshButton, refreshFile } from './diff-viewer.js';
+import { initializeDiffViewer, approveReview, showRefreshButton, refreshFile, updatePageTitle } from './diff-viewer.js';
 import { loadAndDisplayComments, isUserWritingComment, preserveComments, restoreComments } from './comments.js';
 import { openFileEditor, closeEditModal, saveFileEdit } from './file-editor.js';
 import { initializeWebSocket, onEvent } from './websocket-client.js';
@@ -34,6 +34,10 @@ async function reloadDiffData() {
         const since = urlParams.get('since');
         const live = urlParams.get('live') === 'true';
         const mock = urlParams.get('mock') === 'true';
+
+        // Fetch review info and update page title
+        const reviewInfo = await api.fetchReviewInfo();
+        updatePageTitle(reviewInfo);
 
         // Fetch updated diff data
         const params = { commit, range, since, live, mock };

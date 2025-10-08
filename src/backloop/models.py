@@ -68,6 +68,15 @@ class GitDiff(BaseModel):
     message: str | None = None
 
 
+class ReviewInfo(BaseModel):
+    """Metadata about a review session."""
+
+    review_id: str
+    title: str | None = None
+    is_live: bool
+    created_at: float
+
+
 class Comment(BaseModel):
     """A comment on a specific line."""
 

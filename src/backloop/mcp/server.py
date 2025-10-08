@@ -99,7 +99,7 @@ def start_web_server() -> int:
 
 @mcp.tool()
 def startreview(
-    commit: str | None = None, range: str | None = None, since: str | None = None
+    commit: str | None = None, range: str | None = None, since: str | None = None, title: str | None = None
 ) -> str:
     """Start a code review session.
 
@@ -112,8 +112,9 @@ def startreview(
     - commit: Review changes for a specific commit (e.g., 'abc123', 'HEAD', 'main')
     - range: Review changes for a commit range (e.g., 'main..feature', 'abc123..def456')
     - since: Review live changes since a commit (defaults to 'HEAD')
+    - title: Optional title for the review (will be used as the page title)
 
-    Note: Exactly one parameter must be specified.
+    Note: Exactly one of commit, range, or since must be specified.
 
     # Usage:
     This is typically used in one of three ways:
@@ -126,7 +127,7 @@ def startreview(
 
     # Create a new review session
     review_session = review_svc.create_review_session(
-        commit=commit, range=range, since=since
+        commit=commit, range=range, since=since, title=title
     )
 
     # Start web server if not already running and get URL

@@ -7,6 +7,24 @@ import { showCommentForm } from './comments.js';
 const FILE_TREE_BASE_PADDING = 16;
 const FILE_TREE_INDENT_PER_LEVEL = 8;
 
+// Update page title based on review info
+export function updatePageTitle(reviewInfo) {
+    if (reviewInfo && reviewInfo.title) {
+        // Set browser tab title to just the review title
+        document.title = reviewInfo.title;
+
+        // Set page heading with prefix
+        const heading = document.querySelector('.header h1');
+        if (heading) {
+            const connectionStatus = heading.querySelector('#connection-status');
+            heading.textContent = `Backloop Code Review: ${reviewInfo.title} `;
+            if (connectionStatus) {
+                heading.appendChild(connectionStatus);
+            }
+        }
+    }
+}
+
 // Build hierarchical file tree structure
 export function buildFileTree(files) {
     const tree = {};
@@ -506,8 +524,13 @@ export async function initializeDiffViewer() {
     // Setup synchronized scrolling
     setupSynchronizedScrolling();
 
-    // Load diff data
+    // Load review info and diff data
     try {
+        // Fetch review info and update page title
+        const reviewInfo = await api.fetchReviewInfo();
+        updatePageTitle(reviewInfo);
+
+        // Fetch diff data
         const params = { commit, range, since, live, mock };
         const diffData = await api.fetchDiff(params);
 

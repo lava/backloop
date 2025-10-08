@@ -7,7 +7,7 @@ from fastapi import APIRouter, Path, HTTPException, Query, WebSocket, WebSocketD
 from fastapi.responses import FileResponse, RedirectResponse, PlainTextResponse
 from pydantic import BaseModel
 
-from backloop.models import Comment, CommentRequest, FileEditRequest, GitDiff, CommentStatus
+from backloop.models import Comment, CommentRequest, FileEditRequest, GitDiff, CommentStatus, ReviewInfo
 from backloop.api.responses import SuccessResponse
 from backloop.event_manager import EventType
 from backloop.config import settings
@@ -71,6 +71,20 @@ def create_review_router() -> APIRouter:
             raise HTTPException(status_code=404, detail="Review not found")
         review_path = STATIC_DIR / "templates" / "review.html"
         return FileResponse(review_path)
+
+    @router.get("/review/{review_id}/api/info")
+    async def get_review_info(request: Request, review_id: str = Path(...)) -> ReviewInfo:
+        review_service = request.app.state.review_service
+        review_session = review_service.get_review_session(review_id)
+        if not review_session:
+            raise HTTPException(status_code=404, detail="Review not found")
+
+        return ReviewInfo(
+            review_id=review_session.id,
+            title=review_session.title,
+            is_live=review_session.is_live,
+            created_at=review_session.created_at,
+        )
 
     @router.get("/review/{review_id}/api/diff")
     async def get_review_diff(

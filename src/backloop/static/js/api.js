@@ -120,3 +120,14 @@ export async function approveReview(reviewId) {
 
     return response.json();
 }
+
+export async function fetchReviewInfo() {
+    const reviewId = await getReviewId();
+    const response = await fetch(`/review/${reviewId}/api/info`);
+
+    if (!response.ok) {
+        throw new Error('Failed to fetch review info');
+    }
+
+    return response.json();
+}
