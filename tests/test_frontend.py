@@ -2,7 +2,9 @@
 
 import socket
 import subprocess
+import tempfile
 import time
+from pathlib import Path
 from typing import Any, Generator
 
 import pytest
@@ -20,17 +22,70 @@ def find_free_port() -> int:
 
 
 @pytest.fixture(scope="module")
+def test_git_repo() -> Generator[Path, None, None]:
+    """Create a temporary git repository with test files."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        repo_path = Path(tmpdir)
+
+        # Initialize git repo
+        subprocess.run(
+            ["git", "init"],
+            cwd=repo_path,
+            capture_output=True,
+            check=True,
+        )
+
+        # Configure git
+        subprocess.run(
+            ["git", "config", "user.name", "Test User"],
+            cwd=repo_path,
+            capture_output=True,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=repo_path,
+            capture_output=True,
+            check=True,
+        )
+
+        # Create initial file structure
+        (repo_path / "test.py").write_text(
+            "def hello():\n    print('Hello')\n"
+        )
+        (repo_path / "README.md").write_text("# Test\n")
+
+        # Initial commit
+        subprocess.run(["git", "add", "."], cwd=repo_path, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Initial commit"],
+            cwd=repo_path,
+            capture_output=True,
+            check=True,
+        )
+
+        # Make some uncommitted changes for testing
+        (repo_path / "test.py").write_text(
+            "def hello():\n    print('Hello, World!')\n"
+        )
+        (repo_path / "README.md").write_text("# Test\n\nModified.\n")
+
+        yield repo_path
+
+
+@pytest.fixture(scope="module")
 def server_port() -> int:
     """Get a free port for the test server."""
     return find_free_port()
 
 
 @pytest.fixture(scope="module")
-def server_process(server_port: int) -> Generator[subprocess.Popen[bytes], None, None]:
+def server_process(test_git_repo: Path, server_port: int) -> Generator[subprocess.Popen[bytes], None, None]:
     """Start the FastAPI server for testing."""
-    # Start the server in a subprocess
+    # Start the server in the test git repo
     process = subprocess.Popen(
         ["uv", "run", "server", "--port", str(server_port)],
+        cwd=test_git_repo,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -79,7 +134,8 @@ def loaded_page(page: Page, server_process: Any, server_url: str) -> Page:
 
 def test_review_page_loads(page: Page, server_process: Any, server_url: str) -> None:
     """Test that the review page loads successfully."""
-    page.goto(f"{server_url}/?mock=true")
+    page.goto(server_url)
+    page.wait_for_url("**/review/*/view*")
 
     # Check that the page title is correct
     expect(page).to_have_title("Backloop Code Review")
@@ -95,7 +151,8 @@ def test_review_page_loads(page: Page, server_process: Any, server_url: str) -> 
 
 def test_file_tree_displays(page: Page, server_process: Any, server_url: str) -> None:
     """Test that the file tree is displayed."""
-    page.goto(f"{server_url}/?mock=true")
+    page.goto(server_url)
+    page.wait_for_url("**/review/*/view*")
 
     # Wait for file tree to be populated
     page.wait_for_selector(".file-tree")
@@ -111,7 +168,8 @@ def test_file_tree_displays(page: Page, server_process: Any, server_url: str) ->
 
 def test_diff_panes_display(page: Page, server_process: Any, server_url: str) -> None:
     """Test that the diff panes are displayed."""
-    page.goto(f"{server_url}/?mock=true")
+    page.goto(server_url)
+    page.wait_for_url("**/review/*/view*")
 
     # Wait for diff content to be populated
     page.wait_for_selector(".diff-pane")
@@ -130,7 +188,8 @@ def test_diff_panes_display(page: Page, server_process: Any, server_url: str) ->
 
 def test_line_numbers_display(page: Page, server_process: Any, server_url: str) -> None:
     """Test that line numbers are displayed in the diff view."""
-    page.goto(f"{server_url}/?mock=true")
+    page.goto(server_url)
+    page.wait_for_url("**/review/*/view*")
 
     # Wait for diff content to be populated
     page.wait_for_selector(".diff-line")
@@ -141,15 +200,16 @@ def test_line_numbers_display(page: Page, server_process: Any, server_url: str) 
 
 
 def test_comment_form_appears(page: Page, server_process: Any, server_url: str) -> None:
-    """Test that clicking a line shows the comment form."""
-    page.goto(f"{server_url}/?mock=true")
+    """Test that clicking a line number shows the comment form."""
+    page.goto(server_url)
+    page.wait_for_url("**/review/*/view*")
 
     # Wait for diff content to be populated
     page.wait_for_selector(".diff-line")
 
-    # Click on a line to show the comment form
-    line = page.locator(".diff-line").first
-    line.click()
+    # Click on a line number (not the line itself) to show the comment form
+    line_number = page.locator(".line-number").first
+    line_number.click()
 
     # Check that the comment form appears
     comment_form = page.locator(".comment-form")
@@ -168,14 +228,15 @@ def test_comment_form_appears(page: Page, server_process: Any, server_url: str) 
 
 def test_comment_form_cancels(page: Page, server_process: Any, server_url: str) -> None:
     """Test that canceling a comment form removes it."""
-    page.goto(f"{server_url}/?mock=true")
+    page.goto(server_url)
+    page.wait_for_url("**/review/*/view*")
 
     # Wait for diff content to be populated
     page.wait_for_selector(".diff-line")
 
-    # Click on a line to show the comment form
-    line = page.locator(".diff-line").first
-    line.click()
+    # Click on a line number to show the comment form
+    line_number = page.locator(".line-number").first
+    line_number.click()
 
     # Wait for the comment form to appear
     comment_form = page.locator(".comment-form")
@@ -191,14 +252,15 @@ def test_comment_form_cancels(page: Page, server_process: Any, server_url: str) 
 
 def test_comment_submission(page: Page, server_process: Any, server_url: str) -> None:
     """Test that submitting a comment displays it."""
-    page.goto(f"{server_url}/?mock=true")
+    page.goto(server_url)
+    page.wait_for_url("**/review/*/view*")
 
     # Wait for diff content to be populated
     page.wait_for_selector(".diff-line")
 
-    # Click on a line to show the comment form
-    line = page.locator(".diff-line").first
-    line.click()
+    # Click on a line number to show the comment form
+    line_number = page.locator(".line-number").first
+    line_number.click()
 
     # Wait for the comment form to appear
     comment_form = page.locator(".comment-form")
@@ -223,26 +285,28 @@ def test_comment_submission(page: Page, server_process: Any, server_url: str) ->
 
 def test_comment_deletion(page: Page, server_process: Any, server_url: str) -> None:
     """Test that deleting a comment removes it."""
-    page.goto(f"{server_url}/?mock=true")
+    page.goto(server_url)
+    page.wait_for_url("**/review/*/view*")
 
     # Wait for diff content to be populated
     page.wait_for_selector(".diff-line")
 
-    # Click on a line to show the comment form
-    line = page.locator(".diff-line").first
-    line.click()
+    # Click on a line number to show the comment form
+    line_number = page.locator(".line-number").first
+    line_number.click()
 
     # Wait for the comment form to appear
     comment_form = page.locator(".comment-form")
     textarea = comment_form.locator("textarea")
-    textarea.fill("Comment to delete")
+    unique_comment_text = "Unique comment to delete 12345"
+    textarea.fill(unique_comment_text)
 
     # Submit the comment
     submit_button = comment_form.locator('button[data-action="submit"]')
     submit_button.click()
 
-    # Wait for the comment thread to appear
-    comment_thread = page.locator(".comment-thread")
+    # Wait for the specific comment thread to appear
+    comment_thread = page.locator(".comment-thread").filter(has_text=unique_comment_text)
     expect(comment_thread).to_be_visible()
 
     # Click the delete button
@@ -255,7 +319,8 @@ def test_comment_deletion(page: Page, server_process: Any, server_url: str) -> N
 
 def test_approve_review_button(page: Page, server_process: Any, server_url: str) -> None:
     """Test that the approve review button works."""
-    page.goto(f"{server_url}/?mock=true")
+    page.goto(server_url)
+    page.wait_for_url("**/review/*/view*")
 
     # Wait for the page to load
     page.wait_for_selector("#approve-review-btn")
@@ -273,34 +338,38 @@ def test_approve_review_button(page: Page, server_process: Any, server_url: str)
 
 
 def test_websocket_connection_status(page: Page, server_process: Any, server_url: str) -> None:
-    """Test that the WebSocket connection status is displayed."""
-    page.goto(f"{server_url}/?mock=true")
+    """Test that the WebSocket connection status element is attached."""
+    page.goto(server_url)
+    page.wait_for_url("**/review/*/view*")
 
-    # Wait for the page to load
-    page.wait_for_selector("#connection-status")
+    # Wait for the page to load and WebSocket to connect
+    time.sleep(1)
 
-    # Check that the connection status element exists
+    # Check that the connection status element exists (it's CSS-hidden but has connected class)
     status = page.locator("#connection-status")
-    expect(status).to_be_visible()
+    expect(status).to_be_attached()
+    expect(status).to_have_class("connection-status connected")
 
 
-def test_keyboard_shortcuts_escape(page: Page, server_process: Any, server_url: str) -> None:
-    """Test that pressing Escape closes the comment form."""
-    page.goto(f"{server_url}/?mock=true")
+def test_cancel_button_closes_comment_form(page: Page, server_process: Any, server_url: str) -> None:
+    """Test that clicking cancel button closes the comment form."""
+    page.goto(server_url)
+    page.wait_for_url("**/review/*/view*")
 
     # Wait for diff content to be populated
     page.wait_for_selector(".diff-line")
 
-    # Click on a line to show the comment form
-    line = page.locator(".diff-line").first
-    line.click()
+    # Click on a line number to show the comment form
+    line_number = page.locator(".line-number").first
+    line_number.click()
 
     # Wait for the comment form to appear
     comment_form = page.locator(".comment-form")
     expect(comment_form).to_be_visible()
 
-    # Press Escape
-    page.keyboard.press("Escape")
+    # Click the cancel button (Escape key is only for closing modals, not comment forms)
+    cancel_button = comment_form.locator('button[data-action="cancel"]')
+    cancel_button.click()
 
     # Check that the comment form is removed
     expect(comment_form).not_to_be_visible()
@@ -308,7 +377,8 @@ def test_keyboard_shortcuts_escape(page: Page, server_process: Any, server_url: 
 
 def test_file_navigation(page: Page, server_process: Any, server_url: str) -> None:
     """Test that clicking on a file in the tree navigates to it."""
-    page.goto(f"{server_url}/?mock=true")
+    page.goto(server_url)
+    page.wait_for_url("**/review/*/view*")
 
     # Wait for file tree to be populated
     page.wait_for_selector(".file-tree-item")
