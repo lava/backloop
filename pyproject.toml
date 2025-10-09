@@ -51,6 +51,7 @@ dev = [
     "playwright>=1.55.0",
     "pytest-playwright>=0.7.1",
     "twine>=6.2.0",
+    "types-requests>=2.32.4.20250913",
 ]
 test = [
     "pytest>=8.3.4",

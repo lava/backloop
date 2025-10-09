@@ -6,6 +6,7 @@ import time
 from typing import Any, Generator
 
 import pytest
+import requests
 from playwright.sync_api import Page, expect
 
 
@@ -33,18 +34,47 @@ def server_process(server_port: int) -> Generator[subprocess.Popen[bytes], None,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    # Give the server time to start
-    time.sleep(2)
+    # Wait for server to be ready (with health check)
+    max_retries = 20  # 10 seconds max
+    for i in range(max_retries):
+        try:
+            response = requests.get(f"http://localhost:{server_port}/health", timeout=1)
+            if response.status_code == 200:
+                break
+        except (requests.ConnectionError, requests.Timeout):
+            time.sleep(0.5)
+    else:
+        process.terminate()
+        raise RuntimeError("Server failed to start within 10 seconds")
+
     yield process
     # Clean up
     process.terminate()
-    process.wait()
+    try:
+        process.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
 
 
 @pytest.fixture(scope="module")
 def server_url(server_port: int) -> str:
     """Return the base URL for the test server."""
     return f"http://localhost:{server_port}"
+
+
+@pytest.fixture(autouse=True)
+def configure_page_timeout(page: Page) -> None:
+    """Configure shorter timeouts for faster test failures."""
+    page.set_default_timeout(5000)  # 5 seconds instead of 30
+
+
+@pytest.fixture(scope="module")
+def loaded_page(page: Page, server_process: Any, server_url: str) -> Page:
+    """Return a page that has already loaded the review interface (for module reuse)."""
+    page.goto(f"{server_url}/?mock=true")
+    page.wait_for_selector(".diff-pane", timeout=5000)
+    return page
 
 
 def test_review_page_loads(page: Page, server_process: Any, server_url: str) -> None:

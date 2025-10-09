@@ -34,6 +34,11 @@ def create_review_router() -> APIRouter:
             raise HTTPException(status_code=400, detail="Path is outside repository root")
         return candidate
 
+    @router.get("/health")
+    async def health_check() -> dict:
+        """Health check endpoint for monitoring and testing."""
+        return {"status": "ok"}
+
     @router.get("/favicon.ico")
     async def get_favicon() -> FileResponse:
         favicon_path = STATIC_DIR / "favicon.ico"
