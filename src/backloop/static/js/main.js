@@ -210,30 +210,18 @@ function setupWebSocketHandlers() {
         console.log('File changed event received:', event);
         const filePath = event.data.file_path;
 
-        let relativePath = filePath;
-        let fileFound = false;
+        // Check if the file exists in the current diff
+        const anchorId = 'file-' + filePath.replace(/[^a-zA-Z0-9]/g, '-');
+        const fileElement = document.getElementById(`${anchorId}-new-pane`);
 
-        if (filePath.includes('/')) {
-            const parts = filePath.split('/');
-            for (let i = parts.length - 1; i >= 0; i--) {
-                const testPath = parts.slice(i).join('/');
-                const anchorId = 'file-' + testPath.replace(/[^a-zA-Z0-9]/g, '-');
-                if (document.getElementById(`${anchorId}-new-pane`)) {
-                    relativePath = testPath;
-                    fileFound = true;
-                    break;
-                }
-            }
-        }
-
-        if (!fileFound) {
-            console.log('File not found in current diff, reloading diff data:', relativePath);
+        if (!fileElement) {
+            console.log('File not found in current diff, reloading diff data:', filePath);
             await reloadDiffData();
             return;
         }
 
-        console.log('Auto-refreshing file:', relativePath);
-        await refreshFile(relativePath);
+        console.log('Auto-refreshing file:', filePath);
+        await refreshFile(filePath);
     });
 }
 

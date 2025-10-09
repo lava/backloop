@@ -77,16 +77,23 @@ class ReviewFileSystemEventHandler(FileSystemEventHandler):
     def on_modified(self, event: FileSystemEvent) -> None:
         """Handle file modification events."""
         if isinstance(event, FileModifiedEvent) and not event.is_directory:
-            file_path = str(Path(str(event.src_path)).resolve())
-            debug_write(f"[DEBUG] File modification detected: {file_path}")
+            abs_path = str(Path(str(event.src_path)).resolve())
+            debug_write(f"[DEBUG] File modification detected: {abs_path}")
 
-            if self._should_emit_event(file_path):
-                debug_write(f"[DEBUG] Emitting FILE_CHANGED event for: {file_path}")
+            if self._should_emit_event(abs_path):
+                # Convert to relative path from repo root
+                try:
+                    rel_path = str(Path(abs_path).relative_to(self.repo_root))
+                except ValueError:
+                    # File is outside repo, use absolute path
+                    rel_path = abs_path
+
+                debug_write(f"[DEBUG] Emitting FILE_CHANGED event for: {rel_path}")
                 asyncio.run_coroutine_threadsafe(
                     self.event_manager.emit_event(
                         EventType.FILE_CHANGED,
                         {
-                            "file_path": file_path,
+                            "file_path": rel_path,
                             "event_type": "modified",
                             "timestamp": time.time(),
                         },
@@ -94,19 +101,26 @@ class ReviewFileSystemEventHandler(FileSystemEventHandler):
                     self.loop,
                 )
             else:
-                debug_write(f"[DEBUG] Skipping event for: {file_path} (gitignored or debounced)")
+                debug_write(f"[DEBUG] Skipping event for: {abs_path} (gitignored or debounced)")
 
     def on_deleted(self, event: FileSystemEvent) -> None:
         """Handle file deletion events."""
         if isinstance(event, FileDeletedEvent) and not event.is_directory:
-            file_path = str(Path(str(event.src_path)).resolve())
+            abs_path = str(Path(str(event.src_path)).resolve())
 
-            if self._should_emit_event(file_path):
+            if self._should_emit_event(abs_path):
+                # Convert to relative path from repo root
+                try:
+                    rel_path = str(Path(abs_path).relative_to(self.repo_root))
+                except ValueError:
+                    # File is outside repo, use absolute path
+                    rel_path = abs_path
+
                 asyncio.run_coroutine_threadsafe(
                     self.event_manager.emit_event(
                         EventType.FILE_REMOVED,
                         {
-                            "file_path": file_path,
+                            "file_path": rel_path,
                             "event_type": "deleted",
                             "timestamp": time.time(),
                         },

@@ -4,3 +4,4 @@ dist/
 .claude/
 .venv/
 CLAUDE-TODOS.md
+*.tmp.*
