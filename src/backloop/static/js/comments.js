@@ -366,4 +366,75 @@ export function isUserWritingComment(filePath) {
     return activeCommentForms.has(filePath);
 }
 
+// Preserve all in-progress comment forms for a specific file
+export function preserveInProgressComments(filePath) {
+    const preservedForms = [];
+
+    // Find all comment forms for this file
+    const commentForms = document.querySelectorAll(`.comment-form[data-file-path="${filePath}"]`);
+
+    commentForms.forEach(commentForm => {
+        const textarea = commentForm.querySelector('textarea');
+        if (!textarea) return;
+
+        // Get the line element that the comment form is attached to
+        const lineElement = commentForm.previousElementSibling;
+        if (!lineElement || !lineElement.classList.contains('diff-line')) {
+            return;
+        }
+
+        preservedForms.push({
+            filePath: commentForm.dataset.filePath,
+            lineElementId: lineElement.id,
+            content: textarea.value,
+            side: commentForm.dataset.side,
+            lineNumber: commentForm.dataset.lineNumber
+        });
+    });
+
+    return preservedForms;
+}
+
+// Restore in-progress comment forms after file refresh
+export function restoreInProgressComments(preservedForms) {
+    if (!preservedForms || preservedForms.length === 0) {
+        return 0;
+    }
+
+    let restoredCount = 0;
+
+    preservedForms.forEach((preservedForm, index) => {
+        const lineElement = document.getElementById(preservedForm.lineElementId);
+        if (!lineElement) {
+            console.warn(`Could not find line element ${preservedForm.lineElementId} to restore in-progress comment`);
+            return;
+        }
+
+        // Check if a form already exists at this line
+        const existingForm = lineElement.nextElementSibling;
+        if (existingForm && existingForm.classList.contains('comment-form')) {
+            return;
+        }
+
+        // Recreate the comment form
+        showCommentForm(preservedForm.filePath, preservedForm.lineNumber, preservedForm.side, lineElement);
+
+        // Find the textarea that was just created (it's the next sibling after the line element)
+        const recreatedForm = lineElement.nextElementSibling;
+        if (recreatedForm && recreatedForm.classList.contains('comment-form')) {
+            const textarea = recreatedForm.querySelector('textarea');
+            if (textarea) {
+                textarea.value = preservedForm.content;
+                restoredCount++;
+            }
+        }
+    });
+
+    if (restoredCount > 0) {
+        console.log(`Restored ${restoredCount} in-progress comment(s)`);
+    }
+
+    return restoredCount;
+}
+
 export { commentsData };

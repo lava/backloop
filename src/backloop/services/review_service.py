@@ -50,16 +50,16 @@ class ReviewService:
             while True:
                 events = await self._event_manager.wait_for_events(subscriber)
                 for event in events:
-                    if event.type == EventType.FILE_CHANGED:
-                        print(f"[DEBUG] File changed event detected: {event.data}")
+                    # Only process global events (review_id=None) to avoid re-processing our own emitted events
+                    if event.type == EventType.FILE_CHANGED and event.review_id is None:
                         for review in self.active_reviews.values():
                             if review.is_live:
-                                print(f"[DEBUG] Refreshing diff for live review: {review.id}")
                                 review.refresh_diff()
-                                # Notify clients that the review has been updated
+                                # Forward the file changed event to review-specific subscribers
+                                # This allows clients to handle file changes granularly
                                 await self._event_manager.emit_event(
-                                    EventType.REVIEW_UPDATED,
-                                    {"review_id": review.id},
+                                    EventType.FILE_CHANGED,
+                                    event.data,
                                     review_id=review.id,
                                 )
         finally:

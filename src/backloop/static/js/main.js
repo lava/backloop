@@ -1,7 +1,7 @@
 // Main entry point for the review application
 
-import { initializeDiffViewer, approveReview, showRefreshButton, refreshFile, updatePageTitle } from './diff-viewer.js';
-import { loadAndDisplayComments, isUserWritingComment, preserveComments, restoreComments } from './comments.js';
+import { initializeDiffViewer, approveReview, refreshFile, updatePageTitle } from './diff-viewer.js';
+import { loadAndDisplayComments, preserveComments, restoreComments } from './comments.js';
 import { openFileEditor, closeEditModal, saveFileEdit } from './file-editor.js';
 import { initializeWebSocket, onEvent } from './websocket-client.js';
 import * as api from './api.js';
@@ -213,13 +213,6 @@ function setupWebSocketHandlers() {
         if (!fileFound) {
             console.log('File not found in current diff, reloading diff data:', relativePath);
             await reloadDiffData();
-            return;
-        }
-
-        // Check if user is currently writing a comment on this file
-        if (isUserWritingComment(relativePath)) {
-            console.log('User is writing comment on file, showing refresh button:', relativePath);
-            showRefreshButton(relativePath);
             return;
         }
 

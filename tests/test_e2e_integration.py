@@ -477,3 +477,56 @@ class TestRealTimeUpdates:
             has_text=persistent_comment
         )
         expect(reloaded_comment).to_be_visible(timeout=5000)
+
+    def test_in_progress_comment_survives_file_change(
+        self, page: Page, server_process: Any, review_url: str, test_git_repo: Path
+    ) -> None:
+        """Test that an in-progress comment doesn't disappear when the underlying file changes."""
+        page.goto(review_url)
+        page.wait_for_url("**/review/*/view*", timeout=10000)
+
+        # Wait for diff content to load
+        page.wait_for_selector(".diff-line", timeout=10000)
+
+        # Click on a line to open the comment form
+        line_number = page.locator(".line-number").first
+        line_number.click()
+
+        # Wait for the comment form to appear
+        comment_form = page.locator(".comment-form")
+        expect(comment_form).to_be_visible(timeout=5000)
+
+        # Start typing a comment (but don't submit it yet)
+        textarea = comment_form.locator("textarea")
+        in_progress_text = "This comment is being written while the file changes"
+        textarea.fill(in_progress_text)
+
+        # Verify the comment text is there
+        expect(textarea).to_have_value(in_progress_text)
+
+        # Now modify the underlying file to trigger a file change
+        readme_path = test_git_repo / "README.md"
+        readme_path.write_text(
+            "# Test Project\n\nThis is a test project for E2E testing.\n\nFile modified during comment!\n"
+        )
+
+        # Give some time for the file change to be detected and processed
+        # The system should reload the file content but preserve the in-progress comment
+        # File watchers can take a moment to detect changes
+        time.sleep(3)
+
+        # The comment form should still be visible
+        expect(comment_form).to_be_visible()
+
+        # The textarea should still contain the in-progress comment text
+        expect(textarea).to_have_value(in_progress_text)
+
+        # We should be able to submit the comment successfully
+        submit_button = comment_form.locator('button[data-action="submit"]')
+        submit_button.click()
+
+        # The comment should appear as a thread
+        comment_thread = page.locator(".comment-thread").filter(
+            has_text=in_progress_text
+        )
+        expect(comment_thread).to_be_visible(timeout=5000)
