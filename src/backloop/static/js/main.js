@@ -1,7 +1,7 @@
 // Main entry point for the review application
 
 import { initializeDiffViewer, approveReview, refreshFile, updatePageTitle } from './diff-viewer.js';
-import { loadAndDisplayComments, preserveComments, restoreComments } from './comments.js';
+import { loadAndDisplayComments, preserveComments, restoreComments, preserveInProgressComments, restoreInProgressComments } from './comments.js';
 import { openFileEditor, closeEditModal, saveFileEdit } from './file-editor.js';
 import { initializeWebSocket, onEvent } from './websocket-client.js';
 import * as api from './api.js';
@@ -26,6 +26,17 @@ async function reloadDiffData() {
     try {
         // Preserve existing comments before clearing the diff
         const preservedComments = preserveComments();
+
+        // Also preserve all in-progress comment forms
+        const allInProgressForms = [];
+        const commentForms = document.querySelectorAll('.comment-form');
+        commentForms.forEach(form => {
+            const filePath = form.dataset.filePath;
+            if (filePath) {
+                const forms = preserveInProgressComments(filePath);
+                allInProgressForms.push(...forms);
+            }
+        });
 
         // Parse query parameters to get current diff settings
         const urlParams = new URLSearchParams(window.location.search);
@@ -58,6 +69,11 @@ async function reloadDiffData() {
 
             // Restore comments after diff has been re-rendered
             restoreComments(preservedComments);
+
+            // Restore in-progress comment forms
+            if (allInProgressForms.length > 0) {
+                restoreInProgressComments(allInProgressForms);
+            }
 
             console.log('Diff data reloaded successfully');
         }
