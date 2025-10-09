@@ -3,7 +3,7 @@
 import tempfile
 import subprocess
 from pathlib import Path
-from typing import Generator
+from typing import Generator, AsyncGenerator
 import pytest
 
 
@@ -141,3 +141,19 @@ similarity index 100%
 rename from old_name.txt
 rename to new_name.txt
 """
+
+
+@pytest.fixture
+async def review_manager():  # type: ignore[misc]
+    """Create a ReviewManager instance and clean it up after the test.
+
+    This fixture ensures proper cleanup of async resources to avoid
+    event loop warnings during test teardown.
+    """
+    from tests.test_support.review_manager import ReviewManager
+
+    manager = ReviewManager()
+    try:
+        yield manager
+    finally:
+        manager.shutdown()

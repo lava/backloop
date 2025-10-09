@@ -4,7 +4,7 @@ import asyncio
 from pathlib import Path
 import pytest
 
-from backloop.review_manager import ReviewManager, PendingComment
+from tests.test_support.review_manager import ReviewManager, PendingComment
 from backloop.models import CommentRequest, CommentStatus, ReviewApproved
 from backloop.event_manager import EventType
 
@@ -12,10 +12,9 @@ from backloop.event_manager import EventType
 class TestReviewWorkflow:
     """Test complete review workflows from start to finish."""
 
-    async def test_create_review_session(self, git_repo_with_commits: Path) -> None:
+    async def test_create_review_session(self, git_repo_with_commits: Path, review_manager: ReviewManager) -> None:
         """Test creating a review session."""
-        loop = asyncio.get_event_loop()
-        manager = ReviewManager(loop=loop)
+        manager = review_manager
 
         # Create a review session for the latest commit
         review = manager.create_review_session(commit="HEAD")
@@ -26,11 +25,10 @@ class TestReviewWorkflow:
         assert len(review.diff.files) > 0
 
     async def test_review_session_retrieval(
-        self, git_repo_with_commits: Path
+        self, git_repo_with_commits: Path, review_manager: ReviewManager
     ) -> None:
         """Test retrieving a review session by ID."""
-        loop = asyncio.get_event_loop()
-        manager = ReviewManager(loop=loop)
+        manager = review_manager
 
         # Create a review
         review = manager.create_review_session(commit="HEAD")
@@ -42,10 +40,9 @@ class TestReviewWorkflow:
         assert retrieved is not None
         assert retrieved.id == review_id
 
-    async def test_get_most_recent_review(self, git_repo_with_commits: Path) -> None:
+    async def test_get_most_recent_review(self, git_repo_with_commits: Path, review_manager: ReviewManager) -> None:
         """Test getting the most recently created review."""
-        loop = asyncio.get_event_loop()
-        manager = ReviewManager(loop=loop)
+        manager = review_manager
 
         # Create multiple reviews
         review1 = manager.create_review_session(commit="HEAD")
@@ -58,10 +55,9 @@ class TestReviewWorkflow:
         assert recent is not None
         assert recent.id == review2.id
 
-    async def test_add_comment_to_review(self, git_repo_with_commits: Path) -> None:
+    async def test_add_comment_to_review(self, git_repo_with_commits: Path, review_manager: ReviewManager) -> None:
         """Test adding comments to a review session."""
-        loop = asyncio.get_event_loop()
-        manager = ReviewManager(loop=loop)
+        manager = review_manager
 
         # Create review
         review = manager.create_review_session(commit="HEAD")
@@ -79,10 +75,9 @@ class TestReviewWorkflow:
         assert position == 1
         assert comment.status == CommentStatus.PENDING
 
-    async def test_comment_queue_workflow(self, git_repo_with_commits: Path) -> None:
+    async def test_comment_queue_workflow(self, git_repo_with_commits: Path, review_manager: ReviewManager) -> None:
         """Test the comment queue workflow."""
-        loop = asyncio.get_event_loop()
-        manager = ReviewManager(loop=loop)
+        manager = review_manager
 
         # Create review
         review = manager.create_review_session(commit="HEAD")
@@ -105,11 +100,10 @@ class TestReviewWorkflow:
         assert len(queue_status) == 3
 
     async def test_await_comments_returns_comments(
-        self, git_repo_with_commits: Path
+        self, git_repo_with_commits: Path, review_manager: ReviewManager
     ) -> None:
         """Test that await_comments returns pending comments."""
-        loop = asyncio.get_event_loop()
-        manager = ReviewManager(loop=loop)
+        manager = review_manager
 
         # Create review
         review = manager.create_review_session(commit="HEAD")
@@ -135,11 +129,10 @@ class TestReviewWorkflow:
         assert result.comment.content == "Test comment"
 
     async def test_comment_status_transitions(
-        self, git_repo_with_commits: Path
+        self, git_repo_with_commits: Path, review_manager: ReviewManager
     ) -> None:
         """Test comment status transitions through the workflow."""
-        loop = asyncio.get_event_loop()
-        manager = ReviewManager(loop=loop)
+        manager = review_manager
 
         # Create review
         review = manager.create_review_session(commit="HEAD")
@@ -173,11 +166,10 @@ class TestReviewWorkflow:
         assert resolved_comment.queue_position is None
 
     async def test_multiple_reviews_isolation(
-        self, git_repo_with_commits: Path
+        self, git_repo_with_commits: Path, review_manager: ReviewManager
     ) -> None:
         """Test that multiple reviews are isolated from each other."""
-        loop = asyncio.get_event_loop()
-        manager = ReviewManager(loop=loop)
+        manager = review_manager
 
         # Create two reviews
         review1 = manager.create_review_session(commit="HEAD")
@@ -204,11 +196,10 @@ class TestReviewWorkflow:
         assert review2_comments[0].content == "Review 2 comment"
 
     async def test_event_emission_on_comment_dequeue(
-        self, git_repo_with_commits: Path
+        self, git_repo_with_commits: Path, review_manager: ReviewManager
     ) -> None:
         """Test that events are emitted when comments are dequeued."""
-        loop = asyncio.get_event_loop()
-        manager = ReviewManager(loop=loop)
+        manager = review_manager
 
         # Subscribe to events
         subscriber = await manager.event_manager.subscribe()
@@ -243,11 +234,10 @@ class TestReviewWorkflow:
         assert dequeued_events[0].data["comment_id"] == comment.id
 
     async def test_event_scoping_per_review(
-        self, git_repo_with_commits: Path
+        self, git_repo_with_commits: Path, review_manager: ReviewManager
     ) -> None:
         """Ensure subscribers only receive events for their review when scoped."""
-        loop = asyncio.get_event_loop()
-        manager = ReviewManager(loop=loop)
+        manager = review_manager
 
         review1 = manager.create_review_session(commit="HEAD")
         review2 = manager.create_review_session(commit="HEAD")
@@ -279,11 +269,10 @@ class TestReviewWorkflow:
         assert scoped_events[0].data["review"] == review2.id
 
     async def test_await_comments_returns_review_approved_when_no_pending(
-        self, git_repo_with_commits: Path
+        self, git_repo_with_commits: Path, review_manager: ReviewManager
     ) -> None:
         """Return ReviewApproved when latest review is approved and queue is empty."""
-        loop = asyncio.get_event_loop()
-        manager = ReviewManager(loop=loop)
+        manager = review_manager
 
         review = manager.create_review_session(commit="HEAD")
         manager._review_approved[review.id] = True
@@ -293,16 +282,12 @@ class TestReviewWorkflow:
         assert isinstance(result, ReviewApproved)
         assert result.review_id == review.id
 
-        if manager.file_watcher:
-            manager.file_watcher.stop()
-
-    async def test_live_diff_workflow(self, git_repo_with_commits: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_live_diff_workflow(self, git_repo_with_commits: Path, monkeypatch: pytest.MonkeyPatch, review_manager: ReviewManager) -> None:
         """Test creating a review session for live changes."""
         # Change to the git repo directory so GitService picks it up
         monkeypatch.chdir(git_repo_with_commits)
 
-        loop = asyncio.get_event_loop()
-        manager = ReviewManager(loop=loop)
+        manager = review_manager
 
         # Make a change in the working directory
         test_file = git_repo_with_commits / "file1.txt"
@@ -320,10 +305,9 @@ class TestReviewWorkflow:
         modified_files = [f for f in review.diff.files if f.path == "file1.txt"]
         assert len(modified_files) > 0
 
-    async def test_range_diff_workflow(self, git_repo_with_commits: Path) -> None:
+    async def test_range_diff_workflow(self, git_repo_with_commits: Path, review_manager: ReviewManager) -> None:
         """Test creating a review session for a commit range."""
-        loop = asyncio.get_event_loop()
-        manager = ReviewManager(loop=loop)
+        manager = review_manager
 
         # Create range review
         review = manager.create_review_session(range="HEAD~1..HEAD")
@@ -332,10 +316,9 @@ class TestReviewWorkflow:
         assert review.diff is not None
         assert review.diff.message is not None and "Range:" in review.diff.message
 
-    async def test_remove_review_session(self, git_repo_with_commits: Path) -> None:
+    async def test_remove_review_session(self, git_repo_with_commits: Path, review_manager: ReviewManager) -> None:
         """Test removing a review session."""
-        loop = asyncio.get_event_loop()
-        manager = ReviewManager(loop=loop)
+        manager = review_manager
 
         # Create review
         review = manager.create_review_session(commit="HEAD")
@@ -351,28 +334,25 @@ class TestReviewWorkflow:
         # Verify it's gone
         assert manager.get_review_session(review_id) is None
 
-    async def test_remove_nonexistent_review(self, git_repo_with_commits: Path) -> None:
+    async def test_remove_nonexistent_review(self, git_repo_with_commits: Path, review_manager: ReviewManager) -> None:
         """Test removing a non-existent review session."""
-        loop = asyncio.get_event_loop()
-        manager = ReviewManager(loop=loop)
+        manager = review_manager
 
         success = manager.remove_review_session("nonexistent-id")
         assert success is False
 
-    async def test_get_most_recent_review_empty(self) -> None:
+    async def test_get_most_recent_review_empty(self, review_manager: ReviewManager) -> None:
         """Test getting most recent review when no reviews exist."""
-        loop = asyncio.get_event_loop()
-        manager = ReviewManager(loop=loop)
+        manager = review_manager
 
         recent = manager.get_most_recent_review()
         assert recent is None
 
     async def test_comment_persistence_in_review(
-        self, git_repo_with_commits: Path, temp_storage_dir: Path
+        self, git_repo_with_commits: Path, temp_storage_dir: Path, review_manager: ReviewManager
     ) -> None:
         """Test that comments persist within a review session."""
-        loop = asyncio.get_event_loop()
-        manager = ReviewManager(loop=loop)
+        manager = review_manager
 
         # Create review with custom storage
         review = manager.create_review_session(commit="HEAD")
@@ -399,11 +379,10 @@ class TestReviewWorkflow:
             assert comment_id in retrieved_ids
 
     async def test_concurrent_comment_additions(
-        self, git_repo_with_commits: Path
+        self, git_repo_with_commits: Path, review_manager: ReviewManager
     ) -> None:
         """Test adding multiple comments concurrently."""
-        loop = asyncio.get_event_loop()
-        manager = ReviewManager(loop=loop)
+        manager = review_manager
 
         review = manager.create_review_session(commit="HEAD")
 
