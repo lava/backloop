@@ -530,3 +530,97 @@ class TestRealTimeUpdates:
             has_text=in_progress_text
         )
         expect(comment_thread).to_be_visible(timeout=5000)
+
+
+class TestCommentResolution:
+    """Test comment resolution workflow with real-time UI updates."""
+
+    def test_comment_auto_resolves_via_websocket(
+        self, page: Page, server_process: Any, review_url: str, test_git_repo: Path
+    ) -> None:
+        """Test that comment UI automatically updates to 'resolved' when resolved via WebSocket."""
+        page.goto(review_url)
+        page.wait_for_url("**/review/*/view*", timeout=10000)
+
+        # Wait for diff content
+        page.wait_for_selector(".diff-line", timeout=10000)
+
+        # Add a comment
+        line_number = page.locator(".line-number").first
+        line_number.click()
+
+        comment_form = page.locator(".comment-form")
+        textarea = comment_form.locator("textarea")
+        test_comment = "Comment that will be auto-resolved"
+        textarea.fill(test_comment)
+
+        submit_button = comment_form.locator('button[data-action="submit"]')
+        submit_button.click()
+
+        # Wait for the comment to appear
+        comment_thread = page.locator(".comment-thread").filter(has_text=test_comment)
+        expect(comment_thread).to_be_visible(timeout=5000)
+
+        # Verify the comment is NOT resolved initially (no resolved badge)
+        resolved_badge = comment_thread.locator('span:has-text("✓ Resolved")')
+        expect(resolved_badge).not_to_be_visible()
+
+        # Extract the comment ID from the DOM
+        comment_id = comment_thread.get_attribute("data-comment-id")
+        assert comment_id is not None, "Comment ID should be present"
+
+        # Simulate a WebSocket message arriving that resolves the comment
+        # This is what would happen when the MCP tool calls resolve_comment
+        page.evaluate(
+            f"""
+            (async () => {{
+                // Simulate the websocket-client.js handleEvent function receiving a message
+                const event = {{
+                    type: 'comment_resolved',
+                    data: {{
+                        comment_id: '{comment_id}',
+                        status: 'resolved',
+                        reply_message: 'Test resolution from WebSocket'
+                    }}
+                }};
+
+                // Find the websocket handler and trigger it
+                // The handler is registered via onEvent in main.js
+                // We need to manually dispatch this through the event system
+
+                // Check if window has the websocket client's event handlers
+                if (!window._websocketEventHandlers) {{
+                    throw new Error('WebSocket event handlers not initialized');
+                }}
+
+                // Trigger the event through the registered handlers
+                const eventType = event.type;
+                const handlers = window._websocketEventHandlers[eventType];
+
+                if (!handlers || handlers.length === 0) {{
+                    throw new Error(`No handlers registered for ${{eventType}}`);
+                }}
+
+                // Call each handler
+                handlers.forEach(handler => {{
+                    handler(event);
+                }});
+
+                return 'Event dispatched successfully';
+            }})()
+            """
+        )
+
+        # Now verify that the comment appears resolved
+        time.sleep(0.5)  # Small delay for UI update
+        resolved_badge = comment_thread.locator('span:has-text("✓ Resolved")')
+        expect(resolved_badge).to_be_visible(timeout=5000)
+
+        # Check that visual styling is applied
+        comment_body = comment_thread.locator(".comment-body")
+        expect(comment_body).to_have_css("text-decoration-line", "line-through")
+
+        # Check that the resolution note appears
+        resolution_note = comment_thread.locator(".resolution-note")
+        expect(resolution_note).to_be_visible()
+        expect(resolution_note).to_contain_text("Test resolution")

@@ -5,6 +5,11 @@ let connectionStatus = 'disconnected';
 let reconnectTimeout = null;
 let eventHandlers = {};
 
+// Expose event handlers to window for integration tests
+if (typeof window !== 'undefined') {
+    window._websocketEventHandlers = eventHandlers;
+}
+
 export function initializeWebSocket() {
     connectWebSocket();
 }
