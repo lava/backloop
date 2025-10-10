@@ -106,11 +106,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Setup keyboard shortcuts
         setupKeyboardShortcuts();
 
+        // Setup WebSocket event handlers BEFORE initializing the connection
+        setupWebSocketHandlers();
+
         // Initialize WebSocket for real-time updates
         initializeWebSocket();
-
-        // Setup WebSocket event handlers
-        setupWebSocketHandlers();
 
         console.log('Review application initialized successfully');
     } catch (error) {
@@ -228,7 +228,7 @@ function setupWebSocketHandlers() {
 // Update comment status in the UI
 function updateCommentStatus(data) {
     const commentId = data.comment_id;
-    const commentThread = document.querySelector(`[data-comment-id="${commentId}"]`);
+    const commentThread = document.querySelector(`.comment-thread[data-comment-id="${commentId}"]`);
 
     if (!commentThread) {
         console.warn(`Comment thread not found for comment ${commentId}`);

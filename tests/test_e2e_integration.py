@@ -663,8 +663,10 @@ class TestCommentResolution:
         # Wait for diff content
         page.wait_for_selector(".diff-line", timeout=10000)
 
-        # Add a comment
-        line_number = page.locator(".line-number").first
+        # Add a comment specifically on the RIGHT pane (new side) to test the bug
+        # This ensures the spacer is created in the left pane BEFORE the comment thread
+        # in DOM order, which would cause querySelector to find the spacer first
+        line_number = page.locator("#new-pane .line-number").first
         line_number.click()
 
         comment_form = page.locator(".comment-form")

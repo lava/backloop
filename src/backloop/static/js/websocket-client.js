@@ -25,7 +25,7 @@ function connectWebSocket() {
     try {
         ws = new WebSocket(wsUrl);
 
-        ws.onopen = () => {
+        ws.onopen = async () => {
             console.log('WebSocket connected');
             updateConnectionStatus('connected');
 
@@ -34,6 +34,9 @@ function connectWebSocket() {
                 clearTimeout(reconnectTimeout);
                 reconnectTimeout = null;
             }
+
+            // Sync comment statuses to catch up on any missed events
+            await syncCommentStatuses();
         };
 
         ws.onmessage = (event) => {
@@ -135,5 +138,36 @@ export function closeWebSocket() {
     if (reconnectTimeout) {
         clearTimeout(reconnectTimeout);
         reconnectTimeout = null;
+    }
+}
+
+async function syncCommentStatuses() {
+    try {
+        // Import API module dynamically to avoid circular dependencies
+        const { loadComments, getReviewId } = await import('./api.js');
+        const reviewId = await getReviewId();
+        const comments = await loadComments(reviewId);
+
+        // Update each comment in the UI with its current status
+        for (const comment of comments) {
+            // Only sync if the comment has a non-pending status
+            if (comment.status && comment.status !== 'pending') {
+                const eventData = {
+                    comment_id: comment.id,
+                    status: comment.status,
+                    reply_message: comment.reply_message
+                };
+
+                // Trigger the same update logic as WebSocket events
+                handleEvent({
+                    type: comment.status === 'in_progress' ? 'comment_dequeued' : 'comment_resolved',
+                    data: eventData
+                });
+            }
+        }
+
+        console.log(`Synced ${comments.length} comment status(es)`);
+    } catch (error) {
+        console.error('Failed to sync comment statuses:', error);
     }
 }
