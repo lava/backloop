@@ -1,6 +1,6 @@
 [project]
 name = "backloop"
-version = "0.2.1"
+version = "0.3.0"
 description = "A web-based git diff viewer and review tool with MCP server integration"
 readme = "README.md"
 authors = [
