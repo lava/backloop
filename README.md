@@ -53,7 +53,7 @@ To add the MCP server to Claude Code use
 claude mcp add local-review -- uvx --from backloop backloop-mcp
 ```
 
-or run the equivalent command for the LLM frontend of your choice.
+or run the equivalent command for the agent of your choice.
 
 ## Standalone Usage
 
@@ -63,8 +63,8 @@ You can also use Backloop without an agent, as a standalone local diff viewer:
 uvx --from backloop server
 ```
 
-This starts the web server which you can use to view and comment on
-diffs manually.
+This starts the web server which you can use to view diffs
+and add comments. (though no one will see the comments in that case)
 
 ## MCP Tools Reference
 
@@ -77,6 +77,7 @@ Starts a new review session. Exactly one parameter must be specified:
 - `since='HEAD'` - Review changes since a given commit, including uncommited changes
 - `commit='abc123'` - Review a specific commit
 - `range='main..feature'` - Review a range of commits
+- `title='foo'` - Optional review title
 
 **Examples:**
 
