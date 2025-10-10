@@ -238,10 +238,13 @@ export function setupLineClickHandlers() {
 
         const lineElement = lineNumber.closest('.diff-line');
         console.log('Found diff-line?', lineElement);
-        if (!lineElement || lineElement.classList.contains('empty-line')) {
-            console.log('Line element is empty or not found');
+        if (!lineElement) {
+            console.log('Line element not found');
             return;
         }
+
+        // Allow clicking on empty lines (deleted lines in new pane, added lines in old pane)
+        // The comment will use the line number from the opposite side
 
         // Extract line information
         const fileSection = lineElement.closest('.file-section');
@@ -260,18 +263,24 @@ export function setupLineClickHandlers() {
         const newNumEl = lineNumber.querySelector('.new-line-num');
         const oldNum = oldNumEl ? oldNumEl.textContent.trim() : null;
         const newNum = newNumEl ? newNumEl.textContent.trim() : null;
-        
+
         console.log('Line numbers - old:', oldNum, 'new:', newNum, 'side:', side);
-        
+
         // Use the appropriate line number for the side
-        const lineNum = side === 'old' ? oldNum : newNum;
-        
-        if (lineNum) {
+        // For empty lines, use the line number from the opposite side
+        let lineNum = side === 'old' ? oldNum : newNum;
+        if (!lineNum || lineNum === '') {
+            // This is an empty line, use the opposite side's line number
+            lineNum = side === 'old' ? newNum : oldNum;
+            console.log('Empty line detected, using opposite side line number:', lineNum);
+        }
+
+        if (lineNum && lineNum !== '') {
             console.log('Line clicked (global handler):', filePath, lineNum, side);
             // Show comment form
             showCommentForm(filePath, lineNum, side, lineElement);
         } else {
-            console.log('No line number found for side:', side);
+            console.log('No line number found for either side:', side);
         }
     });
     console.log('Global click handler setup complete.');
@@ -436,7 +445,12 @@ function createDiffLine(line, side, filePath, sharedLineIndex) {
     lineDiv.className = 'diff-line';
 
     // Generate unique ID for this line based on file path, line number, and side
-    const lineNum = side === 'old' ? line.oldNum : line.newNum;
+    // For empty lines, use the opposite side's line number
+    let lineNum = side === 'old' ? line.oldNum : line.newNum;
+    if ((!lineNum || lineNum === '') && filePath) {
+        lineNum = side === 'old' ? line.newNum : line.oldNum;
+    }
+
     if (lineNum && filePath) {
         // Sanitize file path for use in ID
         const sanitizedPath = filePath.replace(/[^a-zA-Z0-9]/g, '-');

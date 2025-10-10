@@ -86,6 +86,7 @@ def start_web_server() -> int:
 
     # Get random port
     sock, port = get_random_port()
+    sock.close()  # Close socket, uvicorn will reopen it
     web_server_port = port
 
     debug_write(f"[DEBUG] Got port {port}, starting uvicorn in background thread")
@@ -93,11 +94,10 @@ def start_web_server() -> int:
     # Start server in background thread
     def run_server() -> None:
         try:
-            debug_write(f"[DEBUG] Background thread starting uvicorn on fd {sock.fileno()}")
-            # Create a new event loop for this thread
+            debug_write(f"[DEBUG] Background thread starting uvicorn on port {port}")
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            uvicorn.run(app, fd=sock.fileno())
+            uvicorn.run(app, host="127.0.0.1", port=port, log_level="error")
         except Exception as e:
             debug_write(f"[ERROR] Failed to start uvicorn: {e}")
 

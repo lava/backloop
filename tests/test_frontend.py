@@ -390,3 +390,73 @@ def test_file_navigation(page: Page, server_process: Any, server_url: str) -> No
     # The page should scroll to the file section
     # We can verify this by checking if the URL hash changed or if the element is in view
     # For now, we just verify that the click works without errors
+
+
+def test_comment_on_deleted_and_added_lines(page: Page, server_process: Any, server_url: str) -> None:
+    """Test that users can comment on empty lines (deleted lines in new pane, added lines in old pane)."""
+    page.goto(server_url)
+    page.wait_for_url("**/review/*/view*")
+
+    # Wait for diff content to be populated
+    page.wait_for_selector(".diff-line")
+
+    # Test 1: Click on a deleted line in the NEW pane (should be empty/blank)
+    # Find a deletion in the old pane to get the shared line index
+    old_pane = page.locator("#old-pane")
+    deleted_line_old = old_pane.locator(".diff-line.deletion").first
+
+    # Get the file path and shared line index to find the corresponding empty line in new pane
+    file_path = deleted_line_old.get_attribute("data-file-path")
+    shared_index = deleted_line_old.get_attribute("data-shared-line-index")
+
+    # Find the corresponding empty line in the new pane (same file, same shared index)
+    new_pane = page.locator("#new-pane")
+    empty_line_in_new = new_pane.locator(f".diff-line[data-file-path='{file_path}'][data-shared-line-index='{shared_index}']")
+
+    # This should be an empty-line
+    expect(empty_line_in_new).to_have_class("diff-line deletion empty-line")
+
+    # Try to click on the line number of this empty line
+    empty_line_number = empty_line_in_new.locator(".line-number")
+    empty_line_number.click()
+
+    # Check that the comment form appears (this should work after the fix)
+    comment_form = page.locator(".comment-form")
+    expect(comment_form).to_be_visible()
+
+    # Cancel the form
+    cancel_button = comment_form.locator('button[data-action="cancel"]')
+    cancel_button.click()
+    expect(comment_form).not_to_be_visible()
+
+    # Test 2: Click on an added line in the OLD pane (should be empty/blank)
+    # Find an addition in the new pane
+    added_line_new = new_pane.locator(".diff-line.addition").first
+
+    # Get the file path and shared line index
+    file_path2 = added_line_new.get_attribute("data-file-path")
+    shared_index2 = added_line_new.get_attribute("data-shared-line-index")
+
+    # Find the corresponding empty line in the old pane (same file, same shared index)
+    empty_line_in_old = old_pane.locator(f".diff-line[data-file-path='{file_path2}'][data-shared-line-index='{shared_index2}']")
+
+    # This should be an empty-line
+    expect(empty_line_in_old).to_have_class("diff-line addition empty-line")
+
+    # Try to click on the line number of this empty line
+    empty_line_number2 = empty_line_in_old.locator(".line-number")
+    empty_line_number2.click()
+
+    # Check that the comment form appears
+    expect(comment_form).to_be_visible()
+
+    # Enter and submit a comment
+    textarea = comment_form.locator("textarea")
+    textarea.fill("Comment on empty line (addition in old pane)")
+    submit_button = comment_form.locator('button[data-action="submit"]')
+    submit_button.click()
+
+    # Check that the comment thread appears with our specific text
+    comment_thread = page.locator(".comment-thread").filter(has_text="Comment on empty line (addition in old pane)")
+    expect(comment_thread).to_be_visible()
+    expect(comment_thread.locator(".comment-body")).to_contain_text("Comment on empty line (addition in old pane)")
