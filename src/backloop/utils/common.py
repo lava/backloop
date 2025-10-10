@@ -1,5 +1,14 @@
+import os
 import socket
 from typing import Tuple
+
+
+def debug_write(message: str) -> None:
+    """Write debug message to /tmp/backloop-debug.txt if BACKLOOP_DEBUG is set."""
+    if not os.environ.get("BACKLOOP_DEBUG"):
+        return
+    with open("/tmp/backloop-debug.txt", "a") as f:
+        f.write(f"{message}\n")
 
 
 def get_random_port() -> Tuple[socket.socket, int]:

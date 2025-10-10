@@ -7,6 +7,19 @@ from typing import Generator, AsyncGenerator
 import pytest
 
 
+def pytest_configure(config: pytest.Config) -> None:
+    """Configure pytest and apply nest_asyncio for test runs only.
+
+    This allows nested event loops so pytest-asyncio can coexist with other runners
+    (like Playwright), but only during tests - not in production code.
+    """
+    try:
+        import nest_asyncio  # type: ignore[import-untyped]
+        nest_asyncio.apply()
+    except ImportError:
+        pass  # nest_asyncio is optional for tests
+
+
 @pytest.fixture
 def temp_git_repo() -> Generator[Path, None, None]:
     """Create a temporary git repository for testing.
@@ -144,7 +157,7 @@ rename to new_name.txt
 
 
 @pytest.fixture
-async def review_manager():  # type: ignore[misc]
+async def review_manager() -> AsyncGenerator:  # type: ignore[misc]
     """Create a ReviewManager instance and clean it up after the test.
 
     This fixture ensures proper cleanup of async resources to avoid

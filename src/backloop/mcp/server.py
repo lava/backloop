@@ -15,7 +15,7 @@ from backloop.services.review_service import ReviewService
 from backloop.services.mcp_service import McpService
 from backloop.api.review_router import create_review_router
 from backloop.file_watcher import FileWatcher
-from backloop.utils.common import get_random_port
+from backloop.utils.common import get_random_port, debug_write
 
 # MCP server and services
 mcp = FastMCP("backloop-mcp")
@@ -31,8 +31,7 @@ def get_services() -> tuple[ReviewService, McpService, EventManager]:
     """Get or create the services with event loop."""
     global event_manager, review_service, mcp_service, file_watcher
     if event_manager is None:
-        with open("/tmp/backloop-debug.txt", "a") as f:
-            f.write(f"[DEBUG] Initializing MCP services for directory: {Path.cwd()}\n")
+        debug_write(f"[DEBUG] Initializing MCP services for directory: {Path.cwd()}")
         loop = asyncio.get_running_loop()
         event_manager = EventManager()
         review_service = ReviewService(event_manager)
@@ -45,8 +44,7 @@ def get_services() -> tuple[ReviewService, McpService, EventManager]:
         # Start the review service's event listener
         review_service.start_event_listener()
 
-        with open("/tmp/backloop-debug.txt", "a") as f:
-            f.write(f"[DEBUG] MCP services initialization complete\n")
+        debug_write(f"[DEBUG] MCP services initialization complete")
     assert review_service is not None
     assert mcp_service is not None
     return review_service, mcp_service, event_manager
@@ -57,7 +55,10 @@ def start_web_server() -> int:
     global web_server_port, web_server_thread
 
     if web_server_port is not None:
+        debug_write(f"[DEBUG] Web server already running on port {web_server_port}")
         return web_server_port
+
+    debug_write("[DEBUG] Starting web server...")
 
     review_svc, mcp_svc, event_mgr = get_services()
 
@@ -87,12 +88,23 @@ def start_web_server() -> int:
     sock, port = get_random_port()
     web_server_port = port
 
+    debug_write(f"[DEBUG] Got port {port}, starting uvicorn in background thread")
+
     # Start server in background thread
     def run_server() -> None:
-        uvicorn.run(app, fd=sock.fileno())
+        try:
+            debug_write(f"[DEBUG] Background thread starting uvicorn on fd {sock.fileno()}")
+            # Create a new event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            uvicorn.run(app, fd=sock.fileno())
+        except Exception as e:
+            debug_write(f"[ERROR] Failed to start uvicorn: {e}")
 
     web_server_thread = threading.Thread(target=run_server, daemon=True)
     web_server_thread.start()
+
+    debug_write(f"[DEBUG] Web server thread started on port {port}")
 
     return port
 

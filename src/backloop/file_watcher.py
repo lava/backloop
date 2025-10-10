@@ -13,12 +13,8 @@ from watchdog.events import (
     FileSystemEvent,
 )
 from backloop.event_manager import EventManager, EventType
+from backloop.utils.common import debug_write
 import pathspec
-
-
-def debug_write(message: str) -> None:
-    """Write debug message to /tmp/backloop-debug.txt."""
-    pass
 
 
 class ReviewFileSystemEventHandler(FileSystemEventHandler):
