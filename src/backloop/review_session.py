@@ -37,7 +37,10 @@ class ReviewSession:
 
         self.git_service = GitService()
         comment_file = get_state_dir() / f"backloop_comments_{self.id}.json"
-        self.comment_service = CommentService(storage_path=str(comment_file))
+        self.comment_service = CommentService(
+            storage_path=str(comment_file),
+            default_review_id=self.id,
+        )
 
         self.diff = self._get_diff()
 

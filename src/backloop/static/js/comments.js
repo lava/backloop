@@ -17,6 +17,15 @@ export function showCommentForm(filePath, lineNumber, side, lineElement) {
         // Remove from tracking
         activeCommentForms.delete(filePath);
         existingForm.remove();
+
+        // Also remove the form spacer from the opposite pane
+        const formSpacerId = existingForm.dataset.formSpacerId;
+        if (formSpacerId) {
+            const spacer = document.getElementById(formSpacerId);
+            if (spacer) {
+                spacer.remove();
+            }
+        }
         return;
     }
 
@@ -49,10 +58,19 @@ export function showCommentForm(filePath, lineNumber, side, lineElement) {
     const editDirectlyBtn = commentForm.querySelector('[data-action="edit-directly"]');
     const textarea = commentForm.querySelector('textarea');
 
-    cancelBtn.addEventListener('click', () => {
+    const removeFormAndSpacer = () => {
         activeCommentForms.delete(filePath);
+        const formSpacerId = commentForm.dataset.formSpacerId;
+        if (formSpacerId) {
+            const spacer = document.getElementById(formSpacerId);
+            if (spacer) {
+                spacer.remove();
+            }
+        }
         commentForm.remove();
-    });
+    };
+
+    cancelBtn.addEventListener('click', removeFormAndSpacer);
     submitBtn.addEventListener('click', () => submitComment(submitBtn));
 
     if (editDirectlyBtn) {
@@ -63,8 +81,64 @@ export function showCommentForm(filePath, lineNumber, side, lineElement) {
     lineElement.parentElement.insertBefore(commentForm, lineElement.nextSibling);
     textarea.focus();
 
+    // Create and insert a matching spacer in the opposite pane for the form
+    insertFormSpacerInOppositPane(lineElement, commentForm, side);
+
     // Track this comment form
     activeCommentForms.set(filePath, textarea);
+}
+
+// Insert a spacer for the comment form in the opposite pane
+function insertFormSpacerInOppositPane(lineElement, commentForm, side) {
+    const oppositeSide = side === 'old' ? 'new' : 'old';
+    const filePath = lineElement.dataset.filePath;
+    const sharedLineIndex = lineElement.dataset.sharedLineIndex;
+
+    console.log(
+        'Trying to insert form spacer using shared index',
+        { lineId: lineElement.id, oppositeSide, filePath, sharedLineIndex }
+    );
+
+    if (!filePath || !sharedLineIndex) {
+        console.warn('Missing diff metadata on line element; cannot align form spacer');
+        return;
+    }
+
+    const oppositeLineElement = findLineElementBySharedIndex(filePath, sharedLineIndex, oppositeSide);
+
+    console.log('Found opposite line element for form spacer?', !!oppositeLineElement);
+
+    if (!oppositeLineElement || !oppositeLineElement.parentElement) {
+        console.warn('Could not find opposite line element to insert form spacer');
+        return;
+    }
+
+    // Create a spacer element that matches the height of the form
+    const spacer = document.createElement('div');
+    const spacerId = `form-spacer-${Date.now()}-${Math.random()}`;
+    spacer.id = spacerId;
+    spacer.className = 'comment-form-spacer';
+    spacer.style.visibility = 'hidden'; // Invisible but takes up space
+    spacer.style.margin = '8px';
+    spacer.style.maxWidth = 'calc(100% - 16px)';
+
+    // Store the spacer ID on the form so we can remove it later
+    commentForm.dataset.formSpacerId = spacerId;
+
+    // Insert the spacer after the opposite line element FIRST
+    oppositeLineElement.parentElement.insertBefore(spacer, oppositeLineElement.nextSibling);
+
+    // Copy the exact height after the form renders
+    // Use requestAnimationFrame to ensure layout is calculated
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            const height = commentForm.offsetHeight;
+            spacer.style.height = `${height}px`;
+            console.log(`Form spacer height set to ${height}px for spacer ${spacerId}`);
+        });
+    });
+
+    console.log('Form spacer inserted in opposite pane for alignment');
 }
 
 export async function submitComment(buttonElement) {
@@ -107,7 +181,16 @@ export async function submitComment(buttonElement) {
         // Get line element by stored ID
         const lineElementId = form.dataset.lineElementId;
         const lineElement = document.getElementById(lineElementId);
-        
+
+        // Remove form spacer before removing form
+        const formSpacerId = form.dataset.formSpacerId;
+        if (formSpacerId) {
+            const spacer = document.getElementById(formSpacerId);
+            if (spacer) {
+                spacer.remove();
+            }
+        }
+
         // Remove form and display comment with queue position
         activeCommentForms.delete(filePath);
         form.remove();
@@ -137,6 +220,15 @@ export async function submitComment(buttonElement) {
         const lineElementId = form.dataset.lineElementId;
         const lineElement = document.getElementById(lineElementId);
 
+        // Remove form spacer before removing form
+        const formSpacerId = form.dataset.formSpacerId;
+        if (formSpacerId) {
+            const spacer = document.getElementById(formSpacerId);
+            if (spacer) {
+                spacer.remove();
+            }
+        }
+
         activeCommentForms.delete(filePath);
         form.remove();
         displayCommentWithQueue(comment, lineNumber, side, lineElement);
@@ -145,12 +237,12 @@ export async function submitComment(buttonElement) {
 
 export function displayCommentWithQueue(comment, lineNumber, side, lineElement) {
     console.log('Displaying comment:', comment, 'after line element:', lineElement);
-    
+
     if (!lineElement) {
         console.error('Line element is null, cannot display comment');
         return;
     }
-    
+
     // Create comment display element
     const commentDiv = document.createElement('div');
     commentDiv.className = 'comment-thread';
@@ -160,7 +252,7 @@ export function displayCommentWithQueue(comment, lineNumber, side, lineElement) 
     commentDiv.style.backgroundColor = '#f6f8fa';
     commentDiv.style.border = '1px solid #d0d7de';
     commentDiv.style.borderRadius = '6px';
-    
+
     // Determine status badge HTML
     let statusBadge = '';
     if (comment.status === 'in_progress') {
@@ -214,31 +306,101 @@ export function displayCommentWithQueue(comment, lineNumber, side, lineElement) 
             ${replyMessageHtml}
         </div>
     `;
-    
+
     // Add delete event listener
     const deleteBtn = commentDiv.querySelector('.comment-delete-btn');
     deleteBtn.addEventListener('click', () => deleteComment(comment.id, deleteBtn));
-    
+
     // Insert the comment display after the line element
     if (lineElement.parentElement) {
         lineElement.parentElement.insertBefore(commentDiv, lineElement.nextSibling);
         console.log('Comment display element inserted after line element');
+
+        // Create and insert a matching spacer in the opposite pane to maintain alignment
+        insertSpacerInOppositPane(lineElement, commentDiv, side);
     } else {
         console.error('Line element has no parent, cannot insert comment');
     }
+}
+
+// Insert a spacer element in the opposite pane to maintain alignment
+function insertSpacerInOppositPane(lineElement, commentDiv, side) {
+    const oppositeSide = side === 'old' ? 'new' : 'old';
+    const filePath = lineElement.dataset.filePath;
+    const sharedLineIndex = lineElement.dataset.sharedLineIndex;
+
+    console.log(
+        'Trying to insert comment spacer using shared index',
+        { lineId: lineElement.id, oppositeSide, filePath, sharedLineIndex }
+    );
+
+    if (!filePath || !sharedLineIndex) {
+        console.warn('Missing diff metadata on line element; cannot align comment spacer');
+        return;
+    }
+
+    const oppositeLineElement = findLineElementBySharedIndex(filePath, sharedLineIndex, oppositeSide);
+
+    console.log('Found opposite line element for comment spacer?', !!oppositeLineElement);
+
+    if (!oppositeLineElement || !oppositeLineElement.parentElement) {
+        console.warn('Could not find opposite line element to insert spacer');
+        return;
+    }
+
+    // Create a spacer element that matches the height of the comment
+    const spacer = document.createElement('div');
+    spacer.className = 'comment-spacer';
+    spacer.dataset.commentId = commentDiv.dataset.commentId;
+    spacer.style.visibility = 'hidden'; // Invisible but takes up space
+    spacer.style.margin = '8px';
+    spacer.style.maxWidth = 'calc(100% - 16px)';
+
+    // Insert the spacer after the opposite line element FIRST
+    oppositeLineElement.parentElement.insertBefore(spacer, oppositeLineElement.nextSibling);
+
+    // Copy the exact height after the comment renders
+    // Use requestAnimationFrame to ensure layout is calculated
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            const height = commentDiv.offsetHeight;
+            spacer.style.height = `${height}px`;
+            console.log(`Comment spacer height set to ${height}px for comment ${commentDiv.dataset.commentId}`);
+        });
+    });
+
+    console.log('Spacer inserted in opposite pane for alignment');
+}
+
+function findLineElementBySharedIndex(filePath, sharedLineIndex, side) {
+    const candidates = document.querySelectorAll(
+        `.diff-line[data-side="${side}"][data-shared-line-index="${sharedLineIndex}"]`
+    );
+
+    if (!candidates || candidates.length === 0) {
+        return null;
+    }
+
+    return Array.from(candidates).find(candidate => candidate.dataset.filePath === filePath) || null;
 }
 
 export async function deleteComment(commentId, buttonElement) {
     try {
         // Make API call to delete comment
         await api.deleteComment(commentId);
-        
+
         // Remove comment from UI
         const commentThread = buttonElement.closest('.comment-thread');
         if (commentThread) {
             commentThread.remove();
         }
-        
+
+        // Remove the corresponding spacer from the opposite pane
+        const spacer = document.querySelector(`.comment-spacer[data-comment-id="${commentId}"]`);
+        if (spacer) {
+            spacer.remove();
+        }
+
         // Remove from local storage
         for (const key in commentsData) {
             commentsData[key] = commentsData[key].filter(c => c.id !== commentId);
@@ -246,7 +408,7 @@ export async function deleteComment(commentId, buttonElement) {
                 delete commentsData[key];
             }
         }
-        
+
         console.log('Comment deleted:', commentId);
     } catch (error) {
         console.error('Error deleting comment:', error);
@@ -303,6 +465,15 @@ function escapeHtml(text) {
 export async function openEditDirectly(filePath, lineNumber, commentForm) {
     // Close the comment form
     if (commentForm) {
+        // Remove form spacer
+        const formSpacerId = commentForm.dataset.formSpacerId;
+        if (formSpacerId) {
+            const spacer = document.getElementById(formSpacerId);
+            if (spacer) {
+                spacer.remove();
+            }
+        }
+
         activeCommentForms.delete(filePath);
         commentForm.remove();
     }

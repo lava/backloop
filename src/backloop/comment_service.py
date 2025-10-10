@@ -11,20 +11,36 @@ from backloop.utils.state_dir import get_state_dir
 class CommentService:
     """Service for managing comments on diff lines."""
 
-    def __init__(self, storage_path: str | None = None) -> None:
-        """Initialize with optional storage path."""
+    def __init__(
+        self,
+        storage_path: str | None = None,
+        *,
+        default_review_id: str | None = None,
+    ) -> None:
+        """Initialize with optional storage path and default review context."""
         if storage_path:
             self.storage_path = Path(storage_path)
         else:
             self.storage_path = get_state_dir() / "backloop_comments.json"
+        self._default_review_id = default_review_id or "default"
         self._comments: Dict[str, Comment] = self._load_comments()
         self._comment_queue: List[str] = (
             self._rebuild_queue()
         )  # Rebuild queue from loaded comments
 
-    def add_comment(self, request: CommentRequest, review_id: str) -> Tuple[Comment, int]:
+    def set_default_review_id(self, review_id: str) -> None:
+        """Update the default review identifier used when callers omit it."""
+        self._default_review_id = review_id
+
+    def add_comment(
+        self, request: CommentRequest, review_id: str | None = None
+    ) -> Tuple[Comment, int]:
         """Add a new comment and return it with its queue position."""
         comment_id = str(uuid.uuid4())
+
+        resolved_review_id = review_id or self._default_review_id
+        if not resolved_review_id:
+            raise ValueError("A review_id must be provided to add a comment")
 
         # Add to queue and get position (1-indexed for user display)
         self._comment_queue.append(comment_id)
@@ -32,7 +48,7 @@ class CommentService:
 
         comment = Comment(
             id=comment_id,
-            review_id=review_id,
+            review_id=resolved_review_id,
             file_path=request.file_path,
             line_number=request.line_number,
             side=request.side,

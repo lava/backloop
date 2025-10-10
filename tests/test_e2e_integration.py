@@ -532,6 +532,124 @@ class TestRealTimeUpdates:
         expect(comment_thread).to_be_visible(timeout=5000)
 
 
+class TestCommentAlignment:
+    """Test that comments and forms maintain alignment between old/new panes."""
+
+    def test_comment_creates_spacer_in_opposite_pane(
+        self, page: Page, server_process: Any, review_url: str
+    ) -> None:
+        """Test that adding a comment creates a spacer in the opposite pane for alignment."""
+        page.goto(review_url)
+        page.wait_for_url("**/review/*/view*", timeout=10000)
+
+        # Wait for diff content
+        page.wait_for_selector(".diff-line", timeout=10000)
+
+        # Add a comment to a line in the new (right) pane
+        line_numbers = page.locator("#new-pane .line-number")
+        line_numbers.first.click()
+
+        comment_form = page.locator(".comment-form")
+        textarea = comment_form.locator("textarea")
+        test_comment = "Comment for alignment test"
+        textarea.fill(test_comment)
+        comment_form.locator('button[data-action="submit"]').click()
+
+        # Wait for comment to appear
+        comment_thread = page.locator(".comment-thread").filter(has_text=test_comment)
+        expect(comment_thread).to_be_visible(timeout=5000)
+
+        # Check that a spacer was created in the old (left) pane
+        # The spacer should have the class 'comment-spacer'
+        spacer = page.locator("#old-pane .comment-spacer").first
+        expect(spacer).to_be_attached()
+
+        # The spacer should have a height set (not 0px or empty)
+        spacer_height = spacer.evaluate("el => el.style.height")
+        assert spacer_height != "", "Spacer should have a height set"
+        assert spacer_height != "0px", "Spacer height should not be 0"
+
+    def test_comment_form_creates_spacer_in_opposite_pane(
+        self, page: Page, server_process: Any, review_url: str
+    ) -> None:
+        """Test that opening a comment form creates a spacer in the opposite pane."""
+        page.goto(review_url)
+        page.wait_for_url("**/review/*/view*", timeout=10000)
+
+        # Wait for diff content
+        page.wait_for_selector(".diff-line", timeout=10000)
+
+        # Click a line number to open comment form in the new (right) pane
+        line_numbers = page.locator("#new-pane .line-number")
+        line_numbers.first.click()
+
+        # Wait for form to appear
+        comment_form = page.locator(".comment-form")
+        expect(comment_form).to_be_visible(timeout=5000)
+
+        # Check that a form spacer was created in the old (left) pane
+        form_spacer = page.locator("#old-pane .comment-form-spacer").first
+        expect(form_spacer).to_be_attached()
+
+        # Wait a moment for requestAnimationFrame to set the height
+        time.sleep(0.2)
+
+        # The spacer should have a height
+        spacer_height = form_spacer.evaluate("el => el.style.height")
+        assert spacer_height != "" and spacer_height != "0px", f"Form spacer should have a height set, got: {spacer_height}"
+
+        # Cancel the form and verify spacer is removed
+        cancel_button = comment_form.locator('button[data-action="cancel"]')
+        cancel_button.click()
+
+        # Form should be gone
+        expect(comment_form).not_to_be_visible()
+
+        # Spacer should also be gone
+        expect(form_spacer).not_to_be_attached()
+
+    def test_deleting_comment_removes_spacer(
+        self, page: Page, server_process: Any, review_url: str
+    ) -> None:
+        """Test that deleting a comment also removes its spacer."""
+        page.goto(review_url)
+        page.wait_for_url("**/review/*/view*", timeout=10000)
+
+        # Wait for diff content
+        page.wait_for_selector(".diff-line", timeout=10000)
+
+        # Add a comment
+        line_numbers = page.locator("#new-pane .line-number")
+        line_numbers.first.click()
+
+        comment_form = page.locator(".comment-form")
+        textarea = comment_form.locator("textarea")
+        test_comment = "Comment to be deleted with spacer"
+        textarea.fill(test_comment)
+        comment_form.locator('button[data-action="submit"]').click()
+
+        # Wait for comment to appear
+        comment_thread = page.locator(".comment-thread").filter(has_text=test_comment)
+        expect(comment_thread).to_be_visible(timeout=5000)
+
+        # Get the comment ID to find the specific spacer
+        comment_id = comment_thread.get_attribute("data-comment-id")
+
+        # Verify spacer exists with matching comment ID
+        spacer = page.locator(f"#old-pane .comment-spacer[data-comment-id='{comment_id}']")
+        expect(spacer).to_be_attached()
+
+        # Delete the comment
+        delete_button = comment_thread.locator(".comment-delete-btn")
+        delete_button.click()
+
+        # Comment should be gone
+        expect(comment_thread).not_to_be_visible()
+
+        # Spacer should also be gone
+        expect(spacer).not_to_be_attached()
+
+
 class TestCommentResolution:
     """Test comment resolution workflow with real-time UI updates."""
 

@@ -157,3 +157,22 @@ async def review_manager():  # type: ignore[misc]
         yield manager
     finally:
         manager.shutdown()
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Ensure async-heavy suites run before Playwright E2E tests.
+
+    Playwright spins up its own event loop, which interferes with pytest-asyncio's
+    auto mode. Running our asyncio-based suites first avoids nested loop conflicts.
+    """
+    priority_modules = [
+        "tests/test_event_manager.py",
+        "tests/test_review_workflow.py",
+    ]
+    priority_order = {module: index for index, module in enumerate(priority_modules)}
+
+    def sort_key(item: pytest.Item) -> tuple[int, str]:
+        module_id = item.nodeid.split("::", 1)[0]
+        return (priority_order.get(module_id, len(priority_modules)), module_id)
+
+    items.sort(key=sort_key)

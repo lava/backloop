@@ -15,10 +15,12 @@ import time
 from pathlib import Path
 from typing import Optional
 
-# Add src to path to import backloop modules
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
+# Add project source and test helpers to the path for manual execution
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+sys.path.insert(0, str(PROJECT_ROOT))
 
-from backloop.review_manager import ReviewManager, PendingComment
+from tests.test_support.review_manager import ReviewManager, PendingComment
 from backloop.models import Comment, ReviewApproved
 from backloop.config import settings
 from backloop.event_manager import EventType

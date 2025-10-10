@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import List
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CommentStatus(str, Enum):
@@ -23,6 +23,8 @@ class LineType(str, Enum):
 class DiffLine(BaseModel):
     """A single line in a diff chunk."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     type: LineType
     oldNum: int | None = Field(
         None, serialization_alias="oldNum", validation_alias="old_num"
@@ -31,9 +33,6 @@ class DiffLine(BaseModel):
         None, serialization_alias="newNum", validation_alias="new_num"
     )
     content: str
-
-    class Config:
-        populate_by_name = True
 
 
 class DiffChunk(BaseModel):
@@ -81,7 +80,7 @@ class Comment(BaseModel):
     """A comment on a specific line."""
 
     id: str
-    review_id: str
+    review_id: str | None = None
     file_path: str
     line_number: int
     side: str  # "left" or "right"

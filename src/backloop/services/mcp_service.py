@@ -19,6 +19,11 @@ class McpService:
         self._pending_comments: asyncio.Queue[Comment] = asyncio.Queue()
         self._review_approved: Dict[str, bool] = {}
 
+    @property
+    def review_approved(self) -> Dict[str, bool]:
+        """Expose review approval state for coordination with other services."""
+        return self._review_approved
+
     def add_comment_to_queue(self, comment: Comment) -> None:
         """Add a comment to the pending queue for the MCP server."""
         if settings.debug:

@@ -15,6 +15,7 @@ dependencies = [
     "mcp>=1.2.0",
     "watchdog>=6.0.0",
     "pathspec>=0.12.1",
+    "nest-asyncio>=1.6.0",
 ]
 keywords = ["git", "diff", "review", "mcp", "fastapi", "code-review"]
 classifiers = [

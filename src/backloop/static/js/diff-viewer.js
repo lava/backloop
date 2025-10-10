@@ -333,8 +333,15 @@ function renderFile(file, oldPane, newPane) {
         newFileSection.querySelector('.file-content').innerHTML = binaryMsg;
     } else {
         // Render diff chunks
+        let sharedLineCounter = 0;
         file.chunks.forEach(chunk => {
-            renderChunk(chunk, oldFileSection, newFileSection, file.path);
+            sharedLineCounter = renderChunk(
+                chunk,
+                oldFileSection,
+                newFileSection,
+                file.path,
+                sharedLineCounter
+            );
         });
     }
 }
@@ -372,7 +379,7 @@ function createFileSection(file, side, anchorId) {
 }
 
 // Render a diff chunk
-function renderChunk(chunk, oldSection, newSection, filePath) {
+function renderChunk(chunk, oldSection, newSection, filePath, startingIndex = 0) {
     const oldContent = oldSection.querySelector('.file-content');
     const newContent = newSection.querySelector('.file-content');
 
@@ -401,13 +408,18 @@ function renderChunk(chunk, oldSection, newSection, filePath) {
         }
     }
 
+    let lineIndex = startingIndex;
+
     chunk.lines.forEach(line => {
-        const oldLine = createDiffLine(line, 'old', filePath);
-        const newLine = createDiffLine(line, 'new', filePath);
+        lineIndex += 1;
+        const oldLine = createDiffLine(line, 'old', filePath, lineIndex);
+        const newLine = createDiffLine(line, 'new', filePath, lineIndex);
 
         oldContent.appendChild(oldLine);
         newContent.appendChild(newLine);
     });
+
+    return lineIndex;
 }
 
 // Create a gap indicator element
@@ -419,7 +431,7 @@ function createGapIndicator() {
 }
 
 // Create a diff line element
-function createDiffLine(line, side, filePath) {
+function createDiffLine(line, side, filePath, sharedLineIndex) {
     const lineDiv = document.createElement('div');
     lineDiv.className = 'diff-line';
 
@@ -430,6 +442,13 @@ function createDiffLine(line, side, filePath) {
         const sanitizedPath = filePath.replace(/[^a-zA-Z0-9]/g, '-');
         lineDiv.id = `line-${sanitizedPath}-${lineNum}-${side}`;
     }
+
+    // Attach metadata to link the corresponding lines across panes
+    lineDiv.dataset.filePath = filePath;
+    lineDiv.dataset.side = side;
+    lineDiv.dataset.sharedLineIndex = String(sharedLineIndex);
+    lineDiv.dataset.oldLineNumber = line.oldNum || '';
+    lineDiv.dataset.newLineNumber = line.newNum || '';
 
     // Determine line type class
     switch (line.type) {
@@ -631,8 +650,15 @@ export async function refreshFile(filePath) {
                 oldContent.innerHTML = binaryMsg;
                 newContent.innerHTML = binaryMsg;
             } else {
+                let sharedLineCounter = 0;
                 updatedFile.chunks.forEach(chunk => {
-                    renderChunk(chunk, oldFileSection, newFileSection, updatedFile.path);
+                    sharedLineCounter = renderChunk(
+                        chunk,
+                        oldFileSection,
+                        newFileSection,
+                        updatedFile.path,
+                        sharedLineCounter
+                    );
                 });
             }
 
