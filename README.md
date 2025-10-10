@@ -55,6 +55,12 @@ claude mcp add local-review -- uvx --from backloop backloop-mcp
 
 or run the equivalent command for the agent of your choice.
 
+Then, use a prompt like this to start the review:
+
+```txt
+> Open a local review for the changes you made and wait for approval, then commit and push the changes.
+```
+
 ## Standalone Usage
 
 You can also use Backloop without an agent, as a standalone local diff viewer:
