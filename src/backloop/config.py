@@ -1,8 +1,10 @@
 """Configuration management for the backloop application."""
 
+import os
+import warnings
 from pathlib import Path
 from typing import Optional
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,6 +25,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         env_prefix="BACKLOOP_",
         case_sensitive=False,
+        extra="ignore",  # Ignore unknown environment variables
     )
 
     # Server configuration
@@ -80,6 +83,24 @@ class Settings(BaseSettings):
             return v
         return Path(v)
 
+    @model_validator(mode="after")
+    def warn_unknown_backloop_vars(self) -> "Settings":
+        """Warn about unknown BACKLOOP_ prefixed environment variables."""
+        known_fields = {name.upper() for name in self.model_fields.keys()}
 
-# Global settings instance
+        for env_var in os.environ:
+            if env_var.startswith("BACKLOOP_"):
+                field_name = env_var[9:]
+
+                if field_name.upper() not in known_fields:
+                    warnings.warn(
+                        f"Unknown environment variable '{env_var}' will be ignored. "
+                        f"Valid BACKLOOP_ variables are: {', '.join(sorted('BACKLOOP_' + name.upper() for name in self.model_fields.keys()))}",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+
+        return self
+
+
 settings = Settings()
