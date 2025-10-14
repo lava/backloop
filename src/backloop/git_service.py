@@ -4,6 +4,7 @@ from typing import List, Dict, Any
 from pathlib import Path
 
 from backloop.models import GitDiff, DiffFile, DiffChunk, DiffLine, LineType
+from backloop.utils.common import get_base_directory
 
 
 class GitService:
@@ -11,7 +12,11 @@ class GitService:
 
     def __init__(self, repo_path: str | None = None) -> None:
         """Initialize with optional repository path."""
-        self.repo_path = Path(repo_path) if repo_path else Path.cwd()
+        if repo_path:
+            self.repo_path = Path(repo_path)
+        else:
+            # Auto-detect git repository root
+            self.repo_path = get_base_directory()
 
     def get_commit_diff(self, commit_hash: str) -> GitDiff:
         """Get diff for a specific commit."""

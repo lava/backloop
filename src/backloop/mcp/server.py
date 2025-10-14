@@ -15,7 +15,7 @@ from backloop.services.review_service import ReviewService
 from backloop.services.mcp_service import McpService
 from backloop.api.review_router import create_review_router
 from backloop.file_watcher import FileWatcher
-from backloop.utils.common import get_random_port, debug_write
+from backloop.utils.common import get_random_port, debug_write, get_base_directory
 
 # MCP server and services
 mcp = FastMCP("backloop-mcp")
@@ -31,7 +31,8 @@ def get_services() -> tuple[ReviewService, McpService, EventManager]:
     """Get or create the services with event loop."""
     global event_manager, review_service, mcp_service, file_watcher
     if event_manager is None:
-        debug_write(f"[DEBUG] Initializing MCP services for directory: {Path.cwd()}")
+        base_dir = get_base_directory()
+        debug_write(f"[DEBUG] Initializing MCP services for directory: {base_dir}")
         loop = asyncio.get_running_loop()
         event_manager = EventManager()
         review_service = ReviewService(event_manager)
@@ -39,7 +40,7 @@ def get_services() -> tuple[ReviewService, McpService, EventManager]:
 
         # Initialize file watcher
         file_watcher = FileWatcher(event_manager, loop)
-        file_watcher.start_watching(str(Path.cwd()))
+        file_watcher.start_watching(str(base_dir))
 
         # Start the review service's event listener
         review_service.start_event_listener()

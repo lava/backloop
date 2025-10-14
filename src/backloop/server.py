@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from backloop.utils.common import get_random_port, debug_write
+from backloop.utils.common import get_random_port, debug_write, get_base_directory
 from backloop.services.review_service import ReviewService
 from backloop.services.mcp_service import McpService
 from backloop.api.review_router import create_review_router
@@ -21,16 +21,17 @@ from backloop.file_watcher import FileWatcher
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage the application's lifespan."""
     loop = asyncio.get_running_loop()
-    
+
     # Initialize services
     event_manager = EventManager()
     review_service = ReviewService(event_manager)
     mcp_service = McpService(review_service, event_manager, loop)
-    
+
     # Initialize file watcher
-    debug_write(f"[DEBUG] Initializing file watcher for directory: {Path.cwd()}")
+    base_dir = get_base_directory()
+    debug_write(f"[DEBUG] Initializing file watcher for directory: {base_dir}")
     file_watcher = FileWatcher(event_manager, loop)
-    file_watcher.start_watching(str(Path.cwd()))
+    file_watcher.start_watching(str(base_dir))
     debug_write(f"[DEBUG] File watcher initialization complete")
 
     # Start the review service's event listener

@@ -1,5 +1,7 @@
 import os
 import socket
+import subprocess
+from pathlib import Path
 from typing import Tuple
 
 
@@ -22,3 +24,28 @@ def get_random_port() -> Tuple[socket.socket, int]:
     sock.listen(1)
     port = sock.getsockname()[1]
     return sock, port
+
+
+def get_base_directory() -> Path:
+    """Get the base directory for file operations.
+
+    Currently returns the git repository root, but may be extended in the future
+    to support running from subdirectories.
+
+    Returns:
+        Path to the base directory for file operations.
+
+    Raises:
+        RuntimeError: If not in a git repository or git is not found.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=Path.cwd(),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return Path(result.stdout.strip())
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Not a git repository or git is not found: {e.stderr}")
