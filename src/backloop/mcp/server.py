@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import threading
 from typing import Union
@@ -17,8 +18,58 @@ from backloop.api.review_router import create_review_router
 from backloop.file_watcher import FileWatcher
 from backloop.utils.common import get_random_port, debug_write, get_base_directory
 
-# MCP server and services
-mcp = FastMCP("backloop-mcp")
+# Tool descriptions - full and brief versions
+DESCRIPTIONS = {
+    "startreview": {
+        "full": """Start a code review session.
+
+# Workflow:
+After starting the session, call the 'await_comments' tool and handle
+comments until the review is approved. After addressing a comment, call
+the 'resolve_comment' tool to mark it as done.
+
+# Parameters:
+- commit: Review changes for a specific commit (e.g., 'abc123', 'HEAD', 'main')
+- range: Review changes for a commit range (e.g., 'main..feature', 'abc123..def456')
+- since: Review live changes since a commit (defaults to 'HEAD')
+- title: Optional title for the review (will be used as the page title)
+
+Note: Exactly one of commit, range, or since must be specified.
+
+# Usage:
+This is typically used in one of three ways:
+ - Reviewing changes just before committing: startreview(since='HEAD')
+ - Reviewing changes just after committing changes: startreview(since='HEAD~1')
+ - Reviewing a PR before pushing it: startreview(range='origin/main..HEAD')
+""",
+        "brief": "Start a code review session for a commit, range, or live changes.",
+    },
+    "await_comments": {
+        "full": """Wait for review comments to be posted by the user.
+
+Blocks until either:
+- A comment is available (returns dict with comment details)
+- The review is approved and no comments remain (returns "REVIEW APPROVED")
+""",
+        "brief": "Wait for review comments or approval from the user.",
+    },
+    "resolve_comment": {
+        "full": """Mark a comment as resolved and emit an event to update the frontend.
+
+Parameters:
+- comment_id: The ID of the comment to mark as resolved
+- reply_message: OPTIONAL message to include with the resolution. Only use
+  this when adding non-trivial context or encountering unforeseen issues.
+  Do not send trivial replies like "ok", "done", "fixed the issue".
+
+Returns a status message indicating success or failure.
+""",
+        "brief": "Mark a comment as resolved, optionally with a reply message.",
+    },
+}
+
+# MCP server and services - created lazily in main()
+mcp: FastMCP | None = None
 event_manager: EventManager | None = None
 review_service: ReviewService | None = None
 mcp_service: McpService | None = None
@@ -110,31 +161,9 @@ def start_web_server() -> int:
     return port
 
 
-@mcp.tool()
 def startreview(
     commit: str | None = None, range: str | None = None, since: str | None = None, title: str | None = None
 ) -> str:
-    """Start a code review session.
-
-    # Workflow:
-    After starting the session, call the 'await_comments' tool and handle
-    comments until the review is approved. After addressing a comment, call
-    the 'resolve_comment' tool to mark it as done.
-
-    # Parameters:
-    - commit: Review changes for a specific commit (e.g., 'abc123', 'HEAD', 'main')
-    - range: Review changes for a commit range (e.g., 'main..feature', 'abc123..def456')
-    - since: Review live changes since a commit (defaults to 'HEAD')
-    - title: Optional title for the review (will be used as the page title)
-
-    Note: Exactly one of commit, range, or since must be specified.
-
-    # Usage:
-    This is typically used in one of three ways:
-     - Reviewing changes just before committing: startreview(since='HEAD')
-     - Reviewing changes just after committing changes: startreview(since='HEAD~1')
-     - Reviewing a PR before pushing it: startreview(range='origin/main..HEAD')
-    """
     # Get services
     review_svc, mcp_svc, event_mgr = get_services()
 
@@ -150,14 +179,7 @@ def startreview(
     return f"""Review session started at {review_url}."""
 
 
-@mcp.tool()
 async def await_comments() -> Union[dict, str]:
-    """Wait for review comments to be posted by the user.
-
-    Blocks until either:
-    - A comment is available (returns dict with comment details)
-    - The review is approved and no comments remain (returns "REVIEW APPROVED")
-    """
     review_svc, mcp_svc, event_mgr = get_services()
     result = await mcp_svc.await_comments()
 
@@ -179,18 +201,7 @@ async def await_comments() -> Union[dict, str]:
         return "UNKNOWN RESULT"
 
 
-@mcp.tool()
 async def resolve_comment(comment_id: str, reply_message: str | None = None) -> str:
-    """Mark a comment as resolved and emit an event to update the frontend.
-
-    Parameters:
-    - comment_id: The ID of the comment to mark as resolved
-    - reply_message: OPTIONAL message to include with the resolution. Only use
-      this when adding non-trivial context or encountering unforeseen issues.
-      Do not send trivial replies like "ok", "done", "fixed the issue".
-
-    Returns a status message indicating success or failure.
-    """
     review_svc, mcp_svc, event_mgr = get_services()
 
     # Find the review session that contains this comment
@@ -230,6 +241,29 @@ async def resolve_comment(comment_id: str, reply_message: str | None = None) -> 
 
 def main() -> None:
     """Entry point for the stdio MCP server."""
+    global mcp
+
+    parser = argparse.ArgumentParser(description="Backloop MCP server")
+    parser.add_argument(
+        "--from-plugin",
+        type=str,
+        choices=["true", "false"],
+        default="false",
+        help="Use brief tool descriptions (default: false)",
+    )
+    args = parser.parse_args()
+
+    from_plugin = args.from_plugin == "true"
+    desc_key = "brief" if from_plugin else "full"
+
+    # Create MCP server instance
+    mcp = FastMCP("backloop-mcp")
+
+    # Register tools with appropriate descriptions
+    mcp.tool(description=DESCRIPTIONS["startreview"][desc_key])(startreview)
+    mcp.tool(description=DESCRIPTIONS["await_comments"][desc_key])(await_comments)
+    mcp.tool(description=DESCRIPTIONS["resolve_comment"][desc_key])(resolve_comment)
+
     mcp.run("stdio")
 
 
