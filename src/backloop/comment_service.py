@@ -56,6 +56,7 @@ class CommentService:
             author=request.author,
             timestamp=datetime.now().isoformat(),
             queue_position=queue_position,
+            in_reply_to=request.in_reply_to,
         )
 
         self._comments[comment_id] = comment

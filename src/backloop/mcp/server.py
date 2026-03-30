@@ -187,7 +187,7 @@ async def await_comments() -> Union[dict, str]:
         return "REVIEW APPROVED"
     elif isinstance(result, Comment):
         # Return comment with file name, line number, and review context
-        return {
+        response: dict = {
             "review_id": result.review_id,
             "id": result.id,
             "file_path": result.file_path,
@@ -196,6 +196,20 @@ async def await_comments() -> Union[dict, str]:
             "content": result.content,
             "author": result.author,
         }
+
+        # If this is a reply, include the thread context so the agent
+        # can understand what the user is responding to
+        if result.in_reply_to and result.review_id:
+            for review_session in review_svc.active_reviews.values():
+                parent = review_session.comment_service.get_comment(result.in_reply_to)
+                if parent:
+                    response["thread_context"] = {
+                        "original_comment": parent.content,
+                        "resolution_note": parent.reply_message,
+                    }
+                    break
+
+        return response
     else:
         # This shouldn't happen but handle it gracefully
         return "UNKNOWN RESULT"

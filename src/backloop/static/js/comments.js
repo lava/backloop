@@ -288,6 +288,9 @@ export function displayCommentWithQueue(comment, lineNumber, side, lineElement) 
                 ${escapeHtml(comment.reply_message)}
             </div>
         </div>
+        <button class="btn btn-secondary comment-reply-btn" style="margin-top: 8px; font-size: 12px; padding: 2px 10px;">
+            Reply
+        </button>
     ` : '';
 
     commentDiv.innerHTML = `
@@ -311,6 +314,14 @@ export function displayCommentWithQueue(comment, lineNumber, side, lineElement) 
     const deleteBtn = commentDiv.querySelector('.comment-delete-btn');
     deleteBtn.addEventListener('click', () => deleteComment(comment.id, deleteBtn));
 
+    // Add reply button listener
+    const replyBtn = commentDiv.querySelector('.comment-reply-btn');
+    if (replyBtn) {
+        replyBtn.addEventListener('click', () => {
+            showInlineReplyForm(commentDiv, comment);
+        });
+    }
+
     // Insert the comment display after the line element
     if (lineElement.parentElement) {
         lineElement.parentElement.insertBefore(commentDiv, lineElement.nextSibling);
@@ -321,6 +332,105 @@ export function displayCommentWithQueue(comment, lineNumber, side, lineElement) 
     } else {
         console.error('Line element has no parent, cannot insert comment');
     }
+}
+
+function showInlineReplyForm(commentDiv, parentComment) {
+    // Don't add duplicate reply forms
+    if (commentDiv.querySelector('.inline-reply-form')) return;
+
+    const replyForm = document.createElement('div');
+    replyForm.className = 'inline-reply-form';
+    replyForm.style.marginTop = '8px';
+    replyForm.innerHTML = `
+        <textarea placeholder="Write a follow-up..." style="width: 100%; min-height: 60px; padding: 6px 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 13px; resize: vertical; box-sizing: border-box;"></textarea>
+        <div style="display: flex; gap: 6px; margin-top: 4px;">
+            <button class="btn btn-secondary" data-action="cancel" style="font-size: 12px; padding: 2px 10px;">Cancel</button>
+            <button class="btn btn-primary" data-action="submit" style="font-size: 12px; padding: 2px 10px;">Comment</button>
+        </div>
+    `;
+
+    const commentBodyArea = commentDiv.querySelector('.comment');
+    commentBodyArea.appendChild(replyForm);
+
+    const textarea = replyForm.querySelector('textarea');
+    textarea.focus();
+
+    // Handle Ctrl/Cmd+Enter to submit
+    textarea.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            e.stopPropagation();
+            submitReply();
+        }
+    });
+
+    const cancelBtn = replyForm.querySelector('[data-action="cancel"]');
+    const submitBtn = replyForm.querySelector('[data-action="submit"]');
+
+    cancelBtn.addEventListener('click', () => {
+        replyForm.remove();
+        updateSpacerHeight(commentDiv);
+    });
+
+    submitBtn.addEventListener('click', submitReply);
+
+    async function submitReply() {
+        const content = textarea.value.trim();
+        if (!content) {
+            alert('Please enter a comment.');
+            return;
+        }
+
+        try {
+            const result = await api.addComment({
+                file_path: parentComment.file_path || parentComment.filePath,
+                line_number: parentComment.line_number || parentComment.lineNumber,
+                side: parentComment.side,
+                content: content,
+                author: 'Reviewer',
+                in_reply_to: parentComment.id,
+            });
+
+            const newComment = result.data.comment;
+            const queuePosition = result.data.queue_position;
+            newComment.queuePosition = queuePosition;
+
+            // Remove the reply form
+            replyForm.remove();
+
+            // Find the diff line element that this comment thread is attached to
+            // Walk backwards from the commentDiv to find the .diff-line element
+            let lineElement = commentDiv.previousElementSibling;
+            while (lineElement && !lineElement.classList.contains('diff-line')) {
+                lineElement = lineElement.previousElementSibling;
+            }
+
+            // Display the new comment after the parent comment thread
+            if (lineElement) {
+                displayCommentWithQueue(newComment, parentComment.line_number || parentComment.lineNumber, parentComment.side, commentDiv);
+            }
+
+            console.log(`Reply added at queue position ${queuePosition}:`, newComment);
+        } catch (error) {
+            console.error('Error adding reply:', error);
+            alert('Failed to add reply: ' + error.message);
+        }
+    }
+
+    // Update spacer height after form is rendered
+    updateSpacerHeight(commentDiv);
+}
+
+function updateSpacerHeight(commentDiv) {
+    const commentId = commentDiv.dataset.commentId;
+    if (!commentId) return;
+    const spacer = document.querySelector(`.comment-spacer[data-comment-id="${commentId}"]`);
+    if (!spacer) return;
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            spacer.style.height = `${commentDiv.offsetHeight}px`;
+        });
+    });
 }
 
 // Insert a spacer element in the opposite pane to maintain alignment

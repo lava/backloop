@@ -90,6 +90,7 @@ class Comment(BaseModel):
     queue_position: int | None = None
     status: CommentStatus = CommentStatus.PENDING
     reply_message: str | None = None
+    in_reply_to: str | None = None
 
 
 class CommentRequest(BaseModel):
@@ -100,6 +101,7 @@ class CommentRequest(BaseModel):
     side: str
     content: str
     author: str = "User"
+    in_reply_to: str | None = None
 
 
 class FileEditRequest(BaseModel):
