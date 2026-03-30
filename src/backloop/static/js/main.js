@@ -129,11 +129,13 @@ function setupKeyboardShortcuts() {
             }
         }
 
-        // Ctrl/Cmd + Enter to approve review
+        // Ctrl/Cmd + Enter to submit comment when writing one
         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-            const approveButton = document.getElementById('approve-review-btn');
-            if (approveButton && !approveButton.disabled) {
-                approveReview();
+            const activeTextarea = document.activeElement;
+            if (activeTextarea && activeTextarea.tagName === 'TEXTAREA' && activeTextarea.closest('.comment-form')) {
+                e.preventDefault();
+                const submitBtn = activeTextarea.closest('.comment-form').querySelector('[data-action="submit"]');
+                if (submitBtn) submitBtn.click();
             }
         }
 
