@@ -79,6 +79,98 @@ class GitService:
 
         return GitDiff(files=files, commit_hash=None, author=None, message=description)
 
+    def get_file_diff(
+        self,
+        file_path: str,
+        commit: str | None = None,
+        range: str | None = None,
+        since: str | None = None,
+    ) -> DiffFile | None:
+        """Get the diff for a single file.
+
+        Tries git first; falls back to reading the file from disk
+        (synthesizing an all-additions DiffFile) for untracked files
+        or non-git directories. Returns None for binary files.
+        """
+        diff_output = ""
+
+        try:
+            if commit:
+                cmd = ["git", "show", "--pretty=format:", commit, "--", file_path]
+                diff_output = self._run_git_command(cmd)
+            elif range:
+                cmd = ["git", "diff", range, "--", file_path]
+                diff_output = self._run_git_command(cmd)
+            elif since:
+                cmd = ["git", "diff", since, "--", file_path]
+                diff_output = self._run_git_command(cmd)
+            else:
+                cmd = ["git", "diff", "HEAD", "--", file_path]
+                diff_output = self._run_git_command(cmd)
+        except RuntimeError:
+            # Git not available or not a git repo — fall through to disk fallback
+            diff_output = ""
+
+        if diff_output.strip():
+            files = self._parse_diff_output(diff_output)
+            if files:
+                return files[0]
+
+        # Fallback: file might be untracked or we're not in a git repo.
+        # Read from disk and synthesize a DiffFile with all additions.
+        return self._read_file_as_diff(file_path)
+
+    def _read_file_as_diff(self, file_path: str) -> DiffFile | None:
+        """Read a file from disk and return it as an all-additions DiffFile.
+
+        Returns None if the file doesn't exist or is binary.
+        """
+        full_path = self.repo_path / file_path
+        if not full_path.is_file():
+            return None
+
+        try:
+            content = full_path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            # Binary file — exclude from live updates
+            return None
+
+        lines = content.split("\n")
+        diff_lines = []
+        for i, line in enumerate(lines):
+            if i < len(lines) - 1 or line:  # Don't add empty last line
+                diff_lines.append(
+                    DiffLine(
+                        type=LineType.ADDITION,
+                        oldNum=None,
+                        newNum=i + 1,
+                        content=line,
+                    )
+                )
+
+        chunks = []
+        if diff_lines:
+            chunks.append(
+                DiffChunk(
+                    old_start=1,
+                    old_lines=0,
+                    new_start=1,
+                    new_lines=len(diff_lines),
+                    lines=diff_lines,
+                )
+            )
+
+        return DiffFile(
+            path=file_path,
+            old_path=None,
+            additions=len(diff_lines),
+            deletions=0,
+            chunks=chunks,
+            is_binary=False,
+            is_renamed=False,
+            status="untracked",
+        )
+
     def get_file_at_commit(self, file_path: str, commit_hash: str) -> str:
         """Get file contents at a specific commit."""
         cmd = ["git", "show", f"{commit_hash}:{file_path}"]

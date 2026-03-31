@@ -68,6 +68,19 @@ export async function saveFileEdit(filePath, patch) {
     return response.json();
 }
 
+export async function fetchFileDiff(filePath) {
+    const reviewId = await getReviewId();
+    const response = await fetch(
+        `/review/${reviewId}/api/diff/file?path=${encodeURIComponent(filePath)}`
+    );
+    if (response.status === 404) return null;
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Failed to fetch file diff');
+    }
+    return response.json();
+}
+
 export async function fetchDiff(params = {}) {
     const reviewId = await getReviewId();
     if (!reviewId) {

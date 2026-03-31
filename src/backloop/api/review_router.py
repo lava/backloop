@@ -7,7 +7,7 @@ from fastapi import APIRouter, Path, HTTPException, Query, WebSocket, WebSocketD
 from fastapi.responses import FileResponse, RedirectResponse, PlainTextResponse
 from pydantic import BaseModel
 
-from backloop.models import Comment, CommentRequest, FileEditRequest, GitDiff, CommentStatus, ReviewInfo
+from backloop.models import Comment, CommentRequest, DiffFile, FileEditRequest, GitDiff, CommentStatus, ReviewInfo
 from backloop.api.responses import SuccessResponse
 from backloop.event_manager import EventType
 from backloop.config import settings
@@ -124,6 +124,27 @@ def create_review_router() -> APIRouter:
         else:
             # No query parameters provided, use the session's cached diff
             return review_session.diff
+
+    @router.get("/review/{review_id}/api/diff/file")
+    async def get_single_file_diff(
+        request: Request,
+        review_id: str = Path(...),
+        path: str = Query(..., description="File path relative to repo root"),
+    ) -> DiffFile:
+        review_service = request.app.state.review_service
+        review_session = review_service.get_review_session(review_id)
+        if not review_session:
+            raise HTTPException(status_code=404, detail="Review not found")
+
+        result = review_session.git_service.get_file_diff(
+            path,
+            commit=review_session.commit,
+            range=review_session.range,
+            since=review_session.since,
+        )
+        if result is None:
+            raise HTTPException(status_code=404, detail="File not found in diff")
+        return result
 
     @router.get("/review/{review_id}/api/comments")
     async def get_review_comments(

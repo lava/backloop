@@ -55,13 +55,13 @@ class ReviewService:
                         for review in self.active_reviews.values():
                             if review.is_live:
                                 review.refresh_diff()
-                                # Forward the file changed event to review-specific subscribers
-                                # This allows clients to handle file changes granularly
-                                await self._event_manager.emit_event(
-                                    EventType.FILE_CHANGED,
-                                    event.data,
-                                    review_id=review.id,
-                                )
+                            # Forward file changed events to ALL reviews (not just live)
+                            # so the frontend can update the view for any review type
+                            await self._event_manager.emit_event(
+                                EventType.FILE_CHANGED,
+                                event.data,
+                                review_id=review.id,
+                            )
         finally:
             await self._event_manager.unsubscribe(subscriber.id)
 

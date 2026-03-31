@@ -753,35 +753,164 @@ export async function approveReview() {
     }
 }
 
+// Store pending file updates keyed by file path
+const pendingFileUpdates = new Map();
+
+// Get line numbers of all open (non-resolved) comments and in-progress forms for a file
+function getCommentLineNumbers(filePath) {
+    const lineNumbers = new Set();
+    const anchorId = 'file-' + filePath.replace(/[^a-zA-Z0-9]/g, '-');
+
+    // Find comment threads attached to this file
+    const fileSelectors = [
+        `#${anchorId}-old-pane .comment-thread`,
+        `#${anchorId}-new-pane .comment-thread`,
+        `#${anchorId}-old-pane .comment-form`,
+        `#${anchorId}-new-pane .comment-form`,
+    ];
+
+    for (const selector of fileSelectors) {
+        const elements = document.querySelectorAll(selector);
+        elements.forEach(el => {
+            // Walk backwards to find the .diff-line this is attached to
+            let sibling = el.previousElementSibling;
+            while (sibling && !sibling.classList.contains('diff-line')) {
+                sibling = sibling.previousElementSibling;
+            }
+            if (sibling) {
+                const oldNum = parseInt(sibling.dataset.oldLineNumber);
+                const newNum = parseInt(sibling.dataset.newLineNumber);
+                if (!isNaN(oldNum)) lineNumbers.add(oldNum);
+                if (!isNaN(newNum)) lineNumbers.add(newNum);
+            }
+        });
+    }
+
+    return lineNumbers;
+}
+
+// Check if any chunk in the updated file overlaps with comment line numbers
+function hasCommentOverlap(updatedFile, commentLineNumbers) {
+    if (commentLineNumbers.size === 0) return false;
+
+    for (const chunk of updatedFile.chunks || []) {
+        const chunkOldEnd = chunk.old_start + chunk.old_lines;
+        const chunkNewEnd = chunk.new_start + chunk.new_lines;
+        for (const lineNum of commentLineNumbers) {
+            if ((lineNum >= chunk.old_start && lineNum < chunkOldEnd) ||
+                (lineNum >= chunk.new_start && lineNum < chunkNewEnd)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// Show a refresh indicator on the file header
+function showRefreshIndicator(filePath, updatedFile) {
+    const anchorId = 'file-' + filePath.replace(/[^a-zA-Z0-9]/g, '-');
+    // Show on the new-pane header (right side, more visible)
+    const fileSection = document.getElementById(`${anchorId}-new-pane`);
+    if (!fileSection) return;
+
+    const header = fileSection.querySelector('.file-header');
+    if (!header) return;
+
+    // Don't add duplicate indicators
+    if (header.querySelector('.refresh-indicator')) return;
+
+    const indicator = document.createElement('button');
+    indicator.className = 'refresh-indicator';
+    indicator.title = 'File changed on disk - click to refresh';
+    indicator.innerHTML = '&#x21bb;'; // ↻ character
+    indicator.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const pending = pendingFileUpdates.get(filePath);
+        if (pending) {
+            pendingFileUpdates.delete(filePath);
+            applyFileUpdate(filePath, pending);
+        }
+    });
+
+    header.appendChild(indicator);
+}
+
+// Remove the refresh indicator from a file header
+function removeRefreshIndicator(filePath) {
+    const anchorId = 'file-' + filePath.replace(/[^a-zA-Z0-9]/g, '-');
+    const fileSection = document.getElementById(`${anchorId}-new-pane`);
+    if (!fileSection) return;
+
+    const indicator = fileSection.querySelector('.refresh-indicator');
+    if (indicator) indicator.remove();
+}
+
+// Apply a file update to the DOM (re-render chunks)
+function applyFileUpdate(filePath, updatedFile) {
+    const preservedForms = preserveInProgressComments(filePath);
+
+    const anchorId = 'file-' + filePath.replace(/[^a-zA-Z0-9]/g, '-');
+    const oldFileSection = document.getElementById(`${anchorId}-old-pane`);
+    const newFileSection = document.getElementById(`${anchorId}-new-pane`);
+
+    if (!oldFileSection || !newFileSection) return;
+
+    const oldContent = oldFileSection.querySelector('.file-content');
+    const newContent = newFileSection.querySelector('.file-content');
+
+    if (!oldContent || !newContent) return;
+
+    oldContent.innerHTML = '';
+    newContent.innerHTML = '';
+
+    if (updatedFile.is_binary) {
+        const binaryMsg = '<div class="binary-message">Binary file</div>';
+        oldContent.innerHTML = binaryMsg;
+        newContent.innerHTML = binaryMsg;
+    } else {
+        let sharedLineCounter = 0;
+        (updatedFile.chunks || []).forEach(chunk => {
+            sharedLineCounter = renderChunk(
+                chunk,
+                oldFileSection,
+                newFileSection,
+                updatedFile.path,
+                sharedLineCounter
+            );
+        });
+    }
+
+    updateFileHeaderStats(newFileSection, updatedFile);
+    removeRefreshIndicator(filePath);
+
+    // Update the allFiles cache
+    const idx = allFiles.findIndex(f => f.path === filePath);
+    if (idx !== -1) {
+        allFiles[idx] = updatedFile;
+    }
+
+    if (preservedForms && preservedForms.length > 0) {
+        restoreInProgressComments(preservedForms);
+    }
+
+    console.log('File update applied:', filePath);
+}
+
 export async function refreshFile(filePath) {
     console.log('Refreshing file:', filePath);
 
     try {
-        // Preserve any in-progress comment forms for this file
-        const preservedForms = preserveInProgressComments(filePath);
+        const updatedFile = await api.fetchFileDiff(filePath);
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const commit = urlParams.get('commit');
-        const range = urlParams.get('range');
-        const since = urlParams.get('since');
-        const live = urlParams.get('live') === 'true';
-        const mock = urlParams.get('mock') === 'true';
-
-        const params = { commit, range, since, live, mock };
-        const diffData = await api.fetchDiff(params);
-
-        if (!diffData || !diffData.files) {
-            console.error('Failed to fetch updated diff');
-            return;
-        }
-
-        // Update cached files for single mode
-        allFiles = sortFilesForDisplay(diffData.files);
-
-        const updatedFile = diffData.files.find(f => f.path === filePath);
         if (!updatedFile) {
             console.warn(`File ${filePath} not found in updated diff`);
             return;
+        }
+
+        // Update the allFiles cache
+        const idx = allFiles.findIndex(f => f.path === filePath);
+        if (idx !== -1) {
+            allFiles[idx] = updatedFile;
         }
 
         // In single mode, if this file isn't currently displayed, skip DOM update
@@ -790,51 +919,20 @@ export async function refreshFile(filePath) {
             return;
         }
 
-        const anchorId = 'file-' + filePath.replace(/[^a-zA-Z0-9]/g, '-');
-        const oldFileSection = document.getElementById(`${anchorId}-old-pane`);
-        const newFileSection = document.getElementById(`${anchorId}-new-pane`);
-
-        if (!oldFileSection || !newFileSection) {
-            console.error('File sections not found for re-rendering');
+        // Check if any open comments overlap with the changed lines
+        const commentLineNumbers = getCommentLineNumbers(filePath);
+        if (hasCommentOverlap(updatedFile, commentLineNumbers)) {
+            // Store the pending update and show a refresh indicator
+            pendingFileUpdates.set(filePath, updatedFile);
+            showRefreshIndicator(filePath, updatedFile);
+            console.log('File has comment overlap, showing refresh indicator:', filePath);
             return;
         }
 
-        const oldContent = oldFileSection.querySelector('.file-content');
-        const newContent = newFileSection.querySelector('.file-content');
-
-        if (oldContent && newContent) {
-            oldContent.innerHTML = '';
-            newContent.innerHTML = '';
-
-            if (updatedFile.is_binary) {
-                const binaryMsg = '<div class="binary-message">Binary file</div>';
-                oldContent.innerHTML = binaryMsg;
-                newContent.innerHTML = binaryMsg;
-            } else {
-                let sharedLineCounter = 0;
-                updatedFile.chunks.forEach(chunk => {
-                    sharedLineCounter = renderChunk(
-                        chunk,
-                        oldFileSection,
-                        newFileSection,
-                        updatedFile.path,
-                        sharedLineCounter
-                    );
-                });
-            }
-
-            updateFileHeaderStats(newFileSection, updatedFile);
-
-            // Restore any in-progress comment forms
-            if (preservedForms && preservedForms.length > 0) {
-                restoreInProgressComments(preservedForms);
-            }
-
-            console.log('File refreshed successfully:', filePath);
-        }
+        // No overlap — apply immediately
+        applyFileUpdate(filePath, updatedFile);
     } catch (error) {
         console.error('Error refreshing file:', error);
-        alert('Failed to refresh file: ' + error.message);
     }
 }
 
