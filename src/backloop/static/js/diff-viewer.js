@@ -7,6 +7,68 @@ import { showCommentForm, preserveInProgressComments, restoreInProgressComments 
 const FILE_TREE_BASE_PADDING = 16;
 const FILE_TREE_INDENT_PER_LEVEL = 8;
 
+// Single-file mode state
+const SINGLE_MODE_LINE_THRESHOLD = 300;
+let singleMode = false;
+let selectedFilePath = null;
+let allFiles = []; // cached for re-rendering on selection change
+
+export function isSingleMode() { return singleMode; }
+
+function setSingleMode(enabled) {
+    singleMode = enabled;
+    document.body.classList.toggle('single-mode', enabled);
+    // Update toggle button state
+    const toggle = document.getElementById('single-mode-toggle');
+    if (toggle) toggle.classList.toggle('active', enabled);
+}
+
+// Count total diff lines across all files
+function countTotalDiffLines(files) {
+    let total = 0;
+    for (const file of files) {
+        for (const chunk of (file.chunks || [])) {
+            total += (chunk.lines || []).length;
+        }
+    }
+    return total;
+}
+
+// Navigate to prev/next file in single mode
+export function navigateSingleMode(direction) {
+    if (!singleMode || allFiles.length === 0) return;
+    const currentIndex = allFiles.findIndex(f => f.path === selectedFilePath);
+    const newIndex = Math.max(0, Math.min(allFiles.length - 1, currentIndex + direction));
+    if (newIndex !== currentIndex) {
+        selectFileInSingleMode(allFiles[newIndex].path);
+    }
+}
+
+// Select a file in single mode - re-renders just that file's diff
+function selectFileInSingleMode(filePath) {
+    if (!singleMode) return;
+    selectedFilePath = filePath;
+
+    // Update active state in file tree
+    document.querySelectorAll('.file-tree-item').forEach(el => {
+        el.classList.remove('active');
+    });
+    const item = document.querySelector(`.file-tree-item[data-file-path="${CSS.escape(filePath)}"]`);
+    if (item) item.classList.add('active');
+
+    // Re-render diff with only the selected file
+    const file = allFiles.find(f => f.path === filePath);
+    if (file) {
+        const oldPane = document.getElementById('old-content');
+        const newPane = document.getElementById('new-content');
+        if (oldPane && newPane) {
+            oldPane.innerHTML = '';
+            newPane.innerHTML = '';
+            renderFile(file, oldPane, newPane);
+        }
+    }
+}
+
 // Update page title based on review info
 export function updatePageTitle(reviewInfo) {
     if (reviewInfo && reviewInfo.title) {
@@ -139,15 +201,22 @@ export function renderFileTree(tree, container, depth = 0) {
                 <span class="file-changes">${changesDisplay}</span>
             `;
             
-            // Add click handler to scroll to file
+            // Store file path as data attribute for single mode selection
+            itemElement.dataset.filePath = file.path;
+
+            // Add click handler to scroll to file (or select in single mode)
             itemElement.addEventListener('click', () => {
-                scrollToFile(item.data.path);
-                
-                // Update active state
-                document.querySelectorAll('.file-tree-item').forEach(el => {
-                    el.classList.remove('active');
-                });
-                itemElement.classList.add('active');
+                if (singleMode) {
+                    selectFileInSingleMode(item.data.path);
+                } else {
+                    scrollToFile(item.data.path);
+
+                    // Update active state
+                    document.querySelectorAll('.file-tree-item').forEach(el => {
+                        el.classList.remove('active');
+                    });
+                    itemElement.classList.add('active');
+                }
             });
             
         } else {
@@ -303,17 +372,34 @@ export function renderDiffContent(files) {
         return;
     }
 
+    // Cache files for single mode re-rendering
+    allFiles = sortFilesForDisplay(files);
+
     // Clear existing content
     oldPane.innerHTML = '';
     newPane.innerHTML = '';
 
-    // Sort files to match file tree order
-    const sortedFiles = sortFilesForDisplay(files);
-
-    // Render each file
-    sortedFiles.forEach(file => {
-        renderFile(file, oldPane, newPane);
-    });
+    if (singleMode) {
+        // In single mode, render only the selected file (or first file)
+        if (!selectedFilePath || !allFiles.find(f => f.path === selectedFilePath)) {
+            selectedFilePath = allFiles.length > 0 ? allFiles[0].path : null;
+        }
+        if (selectedFilePath) {
+            const file = allFiles.find(f => f.path === selectedFilePath);
+            if (file) renderFile(file, oldPane, newPane);
+            // Highlight selected file in tree
+            setTimeout(() => {
+                document.querySelectorAll('.file-tree-item').forEach(el => el.classList.remove('active'));
+                const item = document.querySelector(`.file-tree-item[data-file-path="${CSS.escape(selectedFilePath)}"]`);
+                if (item) item.classList.add('active');
+            }, 0);
+        }
+    } else {
+        // Render each file
+        allFiles.forEach(file => {
+            renderFile(file, oldPane, newPane);
+        });
+    }
 
     // Update file count
     const fileCountEl = document.getElementById('files-count');
@@ -550,6 +636,15 @@ export async function initializeDiffViewer() {
     const since = urlParams.get('since');
     const live = urlParams.get('live') === 'true';
     const mock = urlParams.get('mock') === 'true';
+    const modeParam = urlParams.get('mode');
+
+    // Check if single mode is forced via query param
+    if (modeParam === 'single') {
+        setSingleMode(true);
+    }
+
+    // Setup single mode toggle button in sidebar header
+    setupSingleModeToggle();
 
     // Setup line click handlers
     setupLineClickHandlers();
@@ -568,6 +663,15 @@ export async function initializeDiffViewer() {
         const diffData = await api.fetchDiff(params);
 
         if (diffData && diffData.files) {
+            // Auto-enable single mode if total diff lines exceed threshold
+            if (!singleMode && modeParam !== 'all') {
+                const totalLines = countTotalDiffLines(diffData.files);
+                if (totalLines > SINGLE_MODE_LINE_THRESHOLD) {
+                    setSingleMode(true);
+                    console.log(`Auto-enabled single file mode (${totalLines} lines > ${SINGLE_MODE_LINE_THRESHOLD} threshold)`);
+                }
+            }
+
             // Build and render file tree
             const fileTree = buildFileTree(diffData.files);
             const fileTreeContainer = document.getElementById('file-tree');
@@ -580,6 +684,40 @@ export async function initializeDiffViewer() {
         }
     } catch (error) {
         console.error('Error loading diff data:', error);
+    }
+}
+
+// Setup the single mode toggle button in the sidebar header
+function setupSingleModeToggle() {
+    const header = document.querySelector('.files-sidebar-header');
+    if (!header) return;
+
+    const toggle = document.createElement('button');
+    toggle.id = 'single-mode-toggle';
+    toggle.className = 'single-mode-toggle';
+    toggle.title = 'Toggle single file mode';
+    toggle.innerHTML = `
+        <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14">
+            <path d="M2 1.75A1.75 1.75 0 013.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0113.25 16h-9.5A1.75 1.75 0 012 14.25V1.75zm1.75-.25a.25.25 0 00-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 00.25-.25V6h-2.75A1.75 1.75 0 019 4.25V1.5H3.75z"/>
+        </svg>
+    `;
+    if (singleMode) toggle.classList.add('active');
+
+    toggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        setSingleMode(!singleMode);
+        // Re-render with current files
+        if (allFiles.length > 0) {
+            renderDiffContent(allFiles);
+        }
+    });
+
+    // Insert before the file count badge
+    const filesCount = header.querySelector('.files-count');
+    if (filesCount) {
+        header.insertBefore(toggle, filesCount);
+    } else {
+        header.appendChild(toggle);
     }
 }
 
@@ -637,9 +775,18 @@ export async function refreshFile(filePath) {
             return;
         }
 
+        // Update cached files for single mode
+        allFiles = sortFilesForDisplay(diffData.files);
+
         const updatedFile = diffData.files.find(f => f.path === filePath);
         if (!updatedFile) {
             console.warn(`File ${filePath} not found in updated diff`);
+            return;
+        }
+
+        // In single mode, if this file isn't currently displayed, skip DOM update
+        if (singleMode && selectedFilePath !== filePath) {
+            console.log('File not currently displayed in single mode, cached update only:', filePath);
             return;
         }
 

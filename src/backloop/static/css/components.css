@@ -220,6 +220,31 @@
     transform: rotate(0deg);
 }
 
+/* Single mode toggle */
+.single-mode-toggle {
+    background: none;
+    border: 1px solid #d0d7de;
+    border-radius: 4px;
+    padding: 3px 6px;
+    cursor: pointer;
+    color: #656d76;
+    display: flex;
+    align-items: center;
+    transition: all 0.15s;
+}
+
+.single-mode-toggle:hover {
+    background: #f6f8fa;
+    color: #24292f;
+    border-color: #8b949e;
+}
+
+.single-mode-toggle.active {
+    background: #ddf4ff;
+    color: #0969da;
+    border-color: #0969da;
+}
+
 /* File editing styles */
 .edit-button {
     background: #0969da;

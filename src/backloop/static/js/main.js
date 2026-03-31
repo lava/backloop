@@ -1,6 +1,6 @@
 // Main entry point for the review application
 
-import { initializeDiffViewer, approveReview, refreshFile, updatePageTitle } from './diff-viewer.js';
+import { initializeDiffViewer, approveReview, refreshFile, updatePageTitle, isSingleMode, navigateSingleMode } from './diff-viewer.js';
 import { loadAndDisplayComments, preserveComments, restoreComments, preserveInProgressComments, restoreInProgressComments } from './comments.js';
 import { openFileEditor, closeEditModal, saveFileEdit } from './file-editor.js';
 import { initializeWebSocket, onEvent } from './websocket-client.js';
@@ -145,6 +145,17 @@ function setupKeyboardShortcuts() {
             if (modal) {
                 e.preventDefault();
                 saveFileEdit();
+            }
+        }
+
+        // [ and ] to navigate files in single mode
+        if (isSingleMode() && !e.target.closest('textarea, input')) {
+            if (e.key === '[' || e.key === 'ArrowUp' && e.altKey) {
+                e.preventDefault();
+                navigateSingleMode(-1);
+            } else if (e.key === ']' || e.key === 'ArrowDown' && e.altKey) {
+                e.preventDefault();
+                navigateSingleMode(1);
             }
         }
     });
