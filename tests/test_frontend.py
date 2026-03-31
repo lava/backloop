@@ -4,11 +4,11 @@ import socket
 import subprocess
 import tempfile
 import time
+import urllib.request
 from pathlib import Path
 from typing import Any, Generator
 
 import pytest
-import requests
 from playwright.sync_api import Page, expect
 
 
@@ -19,6 +19,18 @@ def find_free_port() -> int:
         s.listen(1)
         port = s.getsockname()[1]
     return port
+
+
+def wait_for_server(url: str, timeout: float = 10.0) -> None:
+    """Wait until the server responds to HTTP requests."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            urllib.request.urlopen(f"{url}/health", timeout=2)
+            return
+        except Exception:
+            time.sleep(0.3)
+    raise RuntimeError(f"Server at {url} did not become ready within {timeout}s")
 
 
 @pytest.fixture(scope="module")
@@ -82,25 +94,21 @@ def server_port() -> int:
 @pytest.fixture(scope="module")
 def server_process(test_git_repo: Path, server_port: int) -> Generator[subprocess.Popen[bytes], None, None]:
     """Start the FastAPI server for testing."""
-    # Start the server in the test git repo
+    # Redirect stdout/stderr to DEVNULL to prevent pipe buffer deadlock
     process = subprocess.Popen(
         ["uv", "run", "server", "--port", str(server_port)],
         cwd=test_git_repo,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
-    # Wait for server to be ready (with health check)
-    max_retries = 20  # 10 seconds max
-    for i in range(max_retries):
-        try:
-            response = requests.get(f"http://localhost:{server_port}/health", timeout=1)
-            if response.status_code == 200:
-                break
-        except (requests.ConnectionError, requests.Timeout):
-            time.sleep(0.5)
-    else:
-        process.terminate()
-        raise RuntimeError("Server failed to start within 10 seconds")
+
+    # Wait for server to be ready via health check
+    try:
+        wait_for_server(f"http://localhost:{server_port}", timeout=15)
+    except RuntimeError:
+        process.kill()
+        process.wait()
+        raise
 
     yield process
     # Clean up
@@ -123,13 +131,6 @@ def configure_page_timeout(page: Page) -> None:
     """Configure shorter timeouts for faster test failures."""
     page.set_default_timeout(5000)  # 5 seconds instead of 30
 
-
-@pytest.fixture(scope="module")
-def loaded_page(page: Page, server_process: Any, server_url: str) -> Page:
-    """Return a page that has already loaded the review interface (for module reuse)."""
-    page.goto(f"{server_url}/?mock=true")
-    page.wait_for_selector(".diff-pane", timeout=5000)
-    return page
 
 
 def test_review_page_loads(page: Page, server_process: Any, server_url: str) -> None:
