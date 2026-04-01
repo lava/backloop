@@ -89,16 +89,24 @@ export function updatePageTitle(reviewInfo) {
 
 // Build hierarchical file tree structure
 export function buildFileTree(files) {
+    // Collect submodule paths from file metadata
+    const submodulePaths = new Set();
+    files.forEach(file => {
+        if (file.submodule) submodulePaths.add(file.submodule);
+    });
+
     const tree = {};
-    
+
     files.forEach(file => {
         const parts = file.path.split('/');
         let current = tree;
-        
+        let pathSoFar = '';
+
         for (let i = 0; i < parts.length; i++) {
             const part = parts[i];
             const isFile = i === parts.length - 1;
-            
+            pathSoFar = pathSoFar ? `${pathSoFar}/${part}` : part;
+
             if (!current[part]) {
                 current[part] = isFile ? {
                     type: 'file',
@@ -107,16 +115,17 @@ export function buildFileTree(files) {
                 } : {
                     type: 'folder',
                     children: {},
-                    expanded: true
+                    expanded: true,
+                    isSubmodule: submodulePaths.has(pathSoFar)
                 };
             }
-            
+
             if (!isFile) {
                 current = current[part].children;
             }
         }
     });
-    
+
     return tree;
 }
 
@@ -223,12 +232,16 @@ export function renderFileTree(tree, container, depth = 0) {
             itemElement.className = 'file-tree-item folder-item';
             itemElement.style.paddingLeft = `${FILE_TREE_BASE_PADDING + depth * FILE_TREE_INDENT_PER_LEVEL}px`;
             const expanded = item.expanded ? '' : 'collapsed';
+            const submoduleBadge = item.isSubmodule
+                ? '<span class="status-tag submodule-tag">SUBMODULE</span>'
+                : '';
             itemElement.innerHTML = `
                 <span class="folder-toggle">▶</span>
                 <svg class="file-icon folder-icon" viewBox="0 0 16 16" fill="currentColor">
                     <path d="M1.75 2A1.75 1.75 0 000 3.75v8.5C0 13.216.784 14 1.75 14h12.5A1.75 1.75 0 0016 12.25v-8.5A1.75 1.75 0 0014.25 2H7.5L6.25.75A1.75 1.75 0 005.086.25H1.75z"/>
                 </svg>
                 <span class="file-name">${key}</span>
+                ${submoduleBadge}
             `;
             
             // Create folder children container
@@ -462,6 +475,14 @@ function createFileSection(file, side, anchorId) {
         badge.className = `status-badge status-${file.status}`;
         badge.textContent = file.status.toUpperCase();
         header.appendChild(badge);
+    }
+
+    // Add submodule badge
+    if (file.submodule) {
+        const subBadge = document.createElement('span');
+        subBadge.className = 'status-tag submodule-tag';
+        subBadge.textContent = `SUBMODULE: ${file.submodule}`;
+        header.appendChild(subBadge);
     }
 
     const content = document.createElement('div');

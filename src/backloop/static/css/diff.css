@@ -241,6 +241,13 @@
     border: 1px solid #d0d7de;
 }
 
+.submodule-tag {
+    background: #ddf4ff;
+    color: #0969da;
+    border: 1px solid #54aeff;
+    margin-left: 6px;
+}
+
 /* File tree status colors */
 .file-added .file-name {
     color: #1a7f37;

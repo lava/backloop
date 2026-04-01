@@ -56,6 +56,7 @@ class DiffFile(BaseModel):
     is_binary: bool = False
     is_renamed: bool = False
     status: str | None = None
+    submodule: str | None = None
 
 
 class GitDiff(BaseModel):

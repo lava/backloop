@@ -35,7 +35,7 @@ class GitService:
         commit_info = [part if part else None for part in commit_parts]
 
         # Get the actual diff
-        diff_cmd = ["git", "show", "--pretty=format:", commit_hash]
+        diff_cmd = ["git", "show", "--pretty=format:", "--submodule=diff", commit_hash]
         diff_output = self._run_git_command(diff_cmd)
 
         files = self._parse_diff_output(diff_output)
@@ -50,7 +50,7 @@ class GitService:
     def get_range_diff(self, commit_range: str) -> GitDiff:
         """Get diff for a commit range (e.g., 'main..feature')."""
         # Get diff for commit range
-        diff_cmd = ["git", "diff", commit_range]
+        diff_cmd = ["git", "diff", "--submodule=diff", commit_range]
         diff_output = self._run_git_command(diff_cmd)
 
         # Parse range to get info
@@ -67,7 +67,7 @@ class GitService:
     def get_live_diff(self, since_commit: str = "HEAD") -> GitDiff:
         """Get diff between current filesystem state and a commit."""
         # Get diff from commit to working directory (includes staged + unstaged)
-        diff_cmd = ["git", "diff", since_commit]
+        diff_cmd = ["git", "diff", "--submodule=diff", since_commit]
         diff_output = self._run_git_command(diff_cmd)
 
         description = f"Live changes since {since_commit}"
@@ -76,6 +76,10 @@ class GitService:
         # Add untracked files
         untracked_files = self._get_untracked_files()
         files.extend(untracked_files)
+
+        # Add untracked files from submodules
+        submodule_untracked = self._get_submodule_untracked_files()
+        files.extend(submodule_untracked)
 
         return GitDiff(files=files, commit_hash=None, author=None, message=description)
 
@@ -96,16 +100,16 @@ class GitService:
 
         try:
             if commit:
-                cmd = ["git", "show", "--pretty=format:", commit, "--", file_path]
+                cmd = ["git", "show", "--pretty=format:", "--submodule=diff", commit, "--", file_path]
                 diff_output = self._run_git_command(cmd)
             elif range:
-                cmd = ["git", "diff", range, "--", file_path]
+                cmd = ["git", "diff", "--submodule=diff", range, "--", file_path]
                 diff_output = self._run_git_command(cmd)
             elif since:
-                cmd = ["git", "diff", since, "--", file_path]
+                cmd = ["git", "diff", "--submodule=diff", since, "--", file_path]
                 diff_output = self._run_git_command(cmd)
             else:
-                cmd = ["git", "diff", "HEAD", "--", file_path]
+                cmd = ["git", "diff", "--submodule=diff", "HEAD", "--", file_path]
                 diff_output = self._run_git_command(cmd)
         except RuntimeError:
             # Git not available or not a git repo — fall through to disk fallback
@@ -249,6 +253,104 @@ class GitService:
 
         return untracked_files
 
+    def _get_submodule_untracked_files(self) -> List[DiffFile]:
+        """Get untracked files inside submodules."""
+        # List submodules and their paths
+        try:
+            status_output = self._run_git_command(
+                ["git", "submodule", "status", "--recursive"]
+            )
+        except RuntimeError:
+            return []
+
+        if not status_output.strip():
+            return []
+
+        untracked_files: List[DiffFile] = []
+        for status_line in status_output.strip().split("\n"):
+            # Format: " <hash> <path> (<describe>)" or "+<hash> <path> (<describe>)" for dirty
+            parts = status_line.strip().split()
+            if len(parts) < 2:
+                continue
+            submodule_path = parts[1]
+            submodule_abs = self.repo_path / submodule_path
+
+            if not submodule_abs.is_dir():
+                continue
+
+            # Get untracked files in this submodule
+            try:
+                result = subprocess.run(
+                    ["git", "ls-files", "--others", "--exclude-standard"],
+                    cwd=submodule_abs,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                sub_untracked = result.stdout
+            except subprocess.CalledProcessError:
+                continue
+
+            if not sub_untracked.strip():
+                continue
+
+            for file_path in sub_untracked.strip().split("\n"):
+                if not file_path:
+                    continue
+                full_rel_path = f"{submodule_path}/{file_path}"
+                full_abs_path = submodule_abs / file_path
+
+                try:
+                    content = full_abs_path.read_text(encoding="utf-8")
+                    file_lines = content.split("\n")
+                    diff_lines = []
+                    for idx, fl in enumerate(file_lines):
+                        if idx < len(file_lines) - 1 or fl:
+                            diff_lines.append(
+                                DiffLine(
+                                    type=LineType.ADDITION,
+                                    oldNum=None,
+                                    newNum=idx + 1,
+                                    content=fl,
+                                )
+                            )
+                    chunks = []
+                    if diff_lines:
+                        chunks.append(
+                            DiffChunk(
+                                old_start=1,
+                                old_lines=0,
+                                new_start=1,
+                                new_lines=len(diff_lines),
+                                lines=diff_lines,
+                            )
+                        )
+                    untracked_files.append(
+                        DiffFile(
+                            path=full_rel_path,
+                            additions=len(diff_lines),
+                            deletions=0,
+                            chunks=chunks,
+                            is_binary=False,
+                            status="untracked",
+                            submodule=submodule_path,
+                        )
+                    )
+                except (UnicodeDecodeError, IOError):
+                    untracked_files.append(
+                        DiffFile(
+                            path=full_rel_path,
+                            additions=0,
+                            deletions=0,
+                            chunks=[],
+                            is_binary=True,
+                            status="untracked",
+                            submodule=submodule_path,
+                        )
+                    )
+
+        return untracked_files
+
     def _run_git_command(self, cmd: List[str]) -> str:
         """Run a git command and return output."""
         try:
@@ -267,12 +369,22 @@ class GitService:
         files = []
         current_file: Dict[str, Any] | None = None
         current_chunk: Dict[str, Any] | None = None
+        current_submodule: str | None = None
 
         lines = diff_output.split("\n")
         i = 0
 
         while i < len(lines):
             line = lines[i]
+
+            # Submodule header from --submodule=diff output
+            submodule_match = re.match(
+                r"Submodule (\S+) (?:contains |[0-9a-f]+)", line
+            )
+            if submodule_match:
+                current_submodule = submodule_match.group(1)
+                i += 1
+                continue
 
             # File header
             if line.startswith("diff --git"):
@@ -297,6 +409,7 @@ class GitService:
                         "is_binary": False,
                         "is_renamed": False,
                         "status": None,
+                        "submodule": current_submodule,
                     }
 
             # Binary file detection
@@ -425,4 +538,5 @@ class GitService:
             is_binary=file_data["is_binary"],
             is_renamed=file_data["is_renamed"],
             status=file_data["status"],
+            submodule=file_data.get("submodule"),
         )
