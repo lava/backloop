@@ -332,10 +332,10 @@ class TestGitService:
         # Should have 2 chunks (one for each change)
         assert len(files[0].chunks) == 2
 
-    def test_parse_diff_filters_submodule_pointer(
+    def test_parse_diff_keeps_submodule_pointer_as_fallback(
         self, temp_git_repo: Path
     ) -> None:
-        """Test that submodule pointer diffs (Subproject commit ...) are filtered out."""
+        """Test that submodule pointer diffs are kept (tagged) when expansion fails."""
         service = GitService(str(temp_git_repo))
 
         submodule_diff = (
@@ -348,12 +348,15 @@ class TestGitService:
             "+Subproject commit bb3d314e110ec10f0b0be969951accc072588806\n"
         )
         files = service._parse_diff_output(submodule_diff)
-        assert len(files) == 0
+        assert len(files) == 1
+        assert files[0].path == "contrib/plugins"
+        assert files[0].submodule == "contrib/plugins"
+        assert files[0].status == "submodule"
 
     def test_parse_diff_keeps_normal_files_alongside_submodule(
         self, temp_git_repo: Path
     ) -> None:
-        """Test that normal file diffs are kept when submodule pointer diffs are filtered."""
+        """Test that normal file diffs are kept alongside submodule pointer diffs."""
         service = GitService(str(temp_git_repo))
 
         mixed_diff = (
@@ -372,13 +375,16 @@ class TestGitService:
             "+New line\n"
         )
         files = service._parse_diff_output(mixed_diff)
-        assert len(files) == 1
-        assert files[0].path == "README.md"
+        assert len(files) == 2
+        assert files[0].path == "contrib/plugins"
+        assert files[0].submodule == "contrib/plugins"
+        assert files[0].status == "submodule"
+        assert files[1].path == "README.md"
 
-    def test_parse_diff_resets_submodule_after_unresolvable_header(
+    def test_parse_diff_creates_placeholders_for_unresolvable_submodules(
         self, temp_git_repo: Path
     ) -> None:
-        """Test that a Submodule header with no expanded diffs doesn't leak into subsequent files."""
+        """Submodule headers with no expanded diffs produce placeholder entries."""
         service = GitService(str(temp_git_repo))
 
         # Simulates --submodule=diff output when commits are not present:
@@ -394,6 +400,105 @@ class TestGitService:
             "+added\n"
         )
         files = service._parse_diff_output(diff_with_unresolvable)
-        assert len(files) == 1
-        assert files[0].path == "test/main.py"
-        assert files[0].submodule is None
+        # Two placeholder entries + one normal file
+        assert len(files) == 3
+
+        # Normal file is not tagged as a submodule
+        main_py = [f for f in files if f.path == "test/main.py"][0]
+        assert main_py.submodule is None
+
+        # Placeholders surface the error
+        plugins = [f for f in files if f.path == "contrib/plugins"][0]
+        assert plugins.submodule == "contrib/plugins"
+        assert plugins.status == "submodule"
+        assert "commits not present" in plugins.chunks[0].lines[0].content
+
+        caf = [f for f in files if f.path == "lib/aux/caf"][0]
+        assert caf.submodule == "lib/aux/caf"
+        assert caf.status == "submodule"
+
+    def test_parse_diff_submodule_header_tags_pointer_diff(
+        self, temp_git_repo: Path
+    ) -> None:
+        """When a Submodule header precedes a pointer diff, the file gets submodule set."""
+        service = GitService(str(temp_git_repo))
+
+        diff_text = (
+            "Submodule contrib/plugins 960d010..bb3d314 (commits not present)\n"
+            "diff --git a/contrib/plugins b/contrib/plugins\n"
+            "index 960d014..bb3d314 160000\n"
+            "--- a/contrib/plugins\n"
+            "+++ b/contrib/plugins\n"
+            "@@ -1 +1 @@\n"
+            "-Subproject commit 960d010478216969bc6d6370f85ec056531da642\n"
+            "+Subproject commit bb3d314e110ec10f0b0be969951accc072588806\n"
+            "diff --git a/test/main.py b/test/main.py\n"
+            "--- a/test/main.py\n"
+            "+++ b/test/main.py\n"
+            "@@ -1 +1,2 @@\n"
+            " existing\n"
+            "+added\n"
+        )
+        files = service._parse_diff_output(diff_text)
+        assert len(files) == 2
+        # Pointer diff is kept with submodule tag
+        assert files[0].path == "contrib/plugins"
+        assert files[0].submodule == "contrib/plugins"
+        assert files[0].status == "submodule"
+        # Normal file is not tagged
+        assert files[1].path == "test/main.py"
+        assert files[1].submodule is None
+
+    def test_expand_submodule_pointer_with_real_submodule(
+        self, temp_git_repo: Path
+    ) -> None:
+        """When the submodule dir exists and commits are resolvable, expand the diff."""
+        import subprocess
+
+        # Create a submodule-like git repo inside the temp repo
+        sub_path = temp_git_repo / "contrib" / "plugins"
+        sub_path.mkdir(parents=True)
+        subprocess.run(["git", "init"], cwd=sub_path, capture_output=True, check=True)
+        # Create initial commit
+        (sub_path / "code.py").write_text("v1\n")
+        subprocess.run(["git", "add", "."], cwd=sub_path, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "init"],
+            cwd=sub_path, capture_output=True, check=True,
+        )
+        old_hash = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=sub_path, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        # Create second commit
+        (sub_path / "code.py").write_text("v2\n")
+        (sub_path / "new.py").write_text("hello\n")
+        subprocess.run(["git", "add", "."], cwd=sub_path, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "update"],
+            cwd=sub_path, capture_output=True, check=True,
+        )
+        new_hash = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=sub_path, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+
+        service = GitService(str(temp_git_repo))
+
+        pointer_diff = (
+            f"diff --git a/contrib/plugins b/contrib/plugins\n"
+            f"index {old_hash[:7]}..{new_hash[:7]} 160000\n"
+            f"--- a/contrib/plugins\n"
+            f"+++ b/contrib/plugins\n"
+            f"@@ -1 +1 @@\n"
+            f"-Subproject commit {old_hash}\n"
+            f"+Subproject commit {new_hash}\n"
+        )
+        files = service._parse_diff_output(pointer_diff)
+        # Should have expanded into individual file diffs
+        assert len(files) >= 1
+        paths = [f.path for f in files]
+        assert "contrib/plugins/code.py" in paths
+        assert "contrib/plugins/new.py" in paths
+        for f in files:
+            assert f.submodule == "contrib/plugins"

@@ -118,6 +118,16 @@ export function buildFileTree(files) {
                     expanded: true,
                     isSubmodule: submodulePaths.has(pathSoFar)
                 };
+            } else if (!isFile && current[part].type === 'file') {
+                // A file node needs to become a folder (e.g. a submodule
+                // placeholder at "contrib/plugins" collides with files
+                // inside "contrib/plugins/...").  Promote to folder.
+                current[part] = {
+                    type: 'folder',
+                    children: {},
+                    expanded: true,
+                    isSubmodule: submodulePaths.has(pathSoFar)
+                };
             }
 
             if (!isFile) {
@@ -172,6 +182,10 @@ export function renderFileTree(tree, container, depth = 0) {
                     statusIndicator = '';
                     statusClass = ' file-untracked';
                     break;
+                case 'submodule':
+                    statusIndicator = '';
+                    statusClass = '';
+                    break;
                 case 'modified':
                 default:
                     statusIndicator = '';
@@ -183,7 +197,9 @@ export function renderFileTree(tree, container, depth = 0) {
             
             // Handle binary files and status tags
             let changesDisplay = '';
-            if (file.status === 'untracked') {
+            if (file.status === 'submodule') {
+                changesDisplay = '<span class="status-tag submodule-tag">SUBMODULE</span>';
+            } else if (file.status === 'untracked') {
                 changesDisplay = '<span class="status-tag untracked-tag">UNTRACKED</span>';
             } else if (file.binary) {
                 changesDisplay = '<span class="binary-indicator">Binary file</span>';

@@ -370,6 +370,9 @@ class GitService:
         current_file: Dict[str, Any] | None = None
         current_chunk: Dict[str, Any] | None = None
         current_submodule: str | None = None
+        # Track submodule headers that had no expanded diffs following them
+        # so we can create placeholder entries for them.
+        pending_submodule_headers: List[tuple[str, str]] = []  # (path, header_line)
 
         lines = diff_output.split("\n")
         i = 0
@@ -383,6 +386,9 @@ class GitService:
             )
             if submodule_match:
                 current_submodule = submodule_match.group(1)
+                # Track this header; it will be removed from the pending
+                # list if we see expanded diffs or a pointer diff for it.
+                pending_submodule_headers.append((current_submodule, line))
                 i += 1
                 continue
 
@@ -404,8 +410,22 @@ class GitService:
                     # Reset submodule tracking if this file isn't inside
                     # the current submodule (e.g. after a "commits not
                     # present" header that produced no expanded diffs).
-                    if current_submodule and not file_path.startswith(current_submodule + "/"):
+                    # Allow exact match for submodule pointer diffs
+                    # (e.g. path "contrib/plugins" == submodule "contrib/plugins").
+                    if current_submodule and not (
+                        file_path.startswith(current_submodule + "/")
+                        or file_path == current_submodule
+                    ):
                         current_submodule = None
+
+                    # This submodule produced real diff output — remove
+                    # it from the pending list so we don't double-emit.
+                    if current_submodule:
+                        pending_submodule_headers = [
+                            (p, h) for p, h in pending_submodule_headers
+                            if p != current_submodule
+                        ]
+
                     current_file = {
                         "old_path": match.group(1),
                         "path": file_path,
@@ -518,9 +538,14 @@ class GitService:
         if current_file:
             files.append(self._finalize_file(current_file))
 
-        # Filter out submodule pointer diffs (e.g. "Subproject commit <hash>")
-        # These appear alongside the expanded --submodule=diff output and are redundant.
-        files = [f for f in files if not self._is_submodule_pointer_diff(f)]
+        # Create placeholder entries for submodule headers that had no
+        # expanded diffs (e.g. "commits not present" or "contains modified content").
+        for sub_path, header_line in pending_submodule_headers:
+            files.append(self._make_submodule_placeholder(sub_path, header_line))
+
+        # Expand submodule pointer diffs: try to get the actual file-level
+        # diff from inside the submodule instead of just showing "Subproject commit".
+        files = self._expand_submodule_pointer_diffs(files)
 
         return files
 
@@ -552,6 +577,44 @@ class GitService:
         )
 
     @staticmethod
+    def _make_submodule_placeholder(sub_path: str, header_line: str) -> DiffFile:
+        """Create a placeholder DiffFile for a submodule header with no expanded diffs.
+
+        This surfaces e.g. ``Submodule path hash..hash (commits not present)``
+        in the review UI instead of silently hiding it.
+        """
+        # Extract the detail portion after the path, e.g.
+        #   "Submodule contrib/plugins 960d010..bb3d314 (commits not present)"
+        # becomes "960d010..bb3d314 (commits not present)"
+        detail = header_line.split(sub_path, 1)[-1].strip().rstrip(":")
+
+        message = detail if detail else "submodule changed"
+        chunk = DiffChunk(
+            old_start=1,
+            old_lines=0,
+            new_start=1,
+            new_lines=1,
+            lines=[
+                DiffLine(
+                    type=LineType.CONTEXT,
+                    oldNum=1,
+                    newNum=1,
+                    content=message,
+                )
+            ],
+        )
+
+        return DiffFile(
+            path=sub_path,
+            additions=0,
+            deletions=0,
+            chunks=[chunk],
+            is_binary=False,
+            status="submodule",
+            submodule=sub_path,
+        )
+
+    @staticmethod
     def _is_submodule_pointer_diff(file: DiffFile) -> bool:
         """Check if a DiffFile is just a submodule pointer change (Subproject commit ...)."""
         for chunk in file.chunks:
@@ -559,3 +622,70 @@ class GitService:
                 if line.content.startswith("Subproject commit "):
                     return True
         return False
+
+    @staticmethod
+    def _extract_submodule_hashes(file: DiffFile) -> tuple[str | None, str | None]:
+        """Extract old and new commit hashes from a submodule pointer diff."""
+        old_hash = None
+        new_hash = None
+        for chunk in file.chunks:
+            for line in chunk.lines:
+                if line.content.startswith("Subproject commit "):
+                    hash_val = line.content[len("Subproject commit "):].strip()
+                    if line.type == LineType.DELETION:
+                        old_hash = hash_val
+                    elif line.type == LineType.ADDITION:
+                        new_hash = hash_val
+        return old_hash, new_hash
+
+    # The empty tree hash — used as the "from" side when a submodule is new.
+    _EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
+    def _expand_submodule_pointer_diffs(self, files: List[DiffFile]) -> List[DiffFile]:
+        """Replace submodule pointer diffs with expanded file-level diffs.
+
+        For each submodule pointer change, try to ``git diff`` inside the
+        submodule to get the real file changes.  If the diff can't be
+        resolved (e.g. missing commits), keep the pointer diff as-is but
+        still tag it with the submodule field.
+        """
+        result: List[DiffFile] = []
+        for file in files:
+            if not self._is_submodule_pointer_diff(file):
+                result.append(file)
+                continue
+
+            submodule_path = file.path
+            old_hash, new_hash = self._extract_submodule_hashes(file)
+            submodule_abs = self.repo_path / submodule_path
+
+            expanded = False
+            if submodule_abs.is_dir() and new_hash:
+                from_ref = old_hash if old_hash and not old_hash.startswith("0" * 7) else self._EMPTY_TREE
+                try:
+                    diff_output = subprocess.run(
+                        ["git", "diff", f"{from_ref}..{new_hash}"],
+                        cwd=submodule_abs,
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    ).stdout
+                    if diff_output.strip():
+                        sub_files = self._parse_diff_output(diff_output)
+                        for sf in sub_files:
+                            sf.path = f"{submodule_path}/{sf.path}"
+                            if sf.old_path:
+                                sf.old_path = f"{submodule_path}/{sf.old_path}"
+                            sf.submodule = submodule_path
+                        result.extend(sub_files)
+                        expanded = True
+                except (subprocess.CalledProcessError, RuntimeError):
+                    pass
+
+            if not expanded:
+                # Couldn't expand — keep the pointer diff but tag it
+                file.submodule = file.submodule or submodule_path
+                file.status = "submodule"
+                result.append(file)
+
+        return result
