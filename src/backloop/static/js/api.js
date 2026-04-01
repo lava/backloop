@@ -35,9 +35,13 @@ export async function deleteComment(commentId) {
     return response.json();
 }
 
-export async function getFileContent(filePath) {
+export async function getFileContent(filePath, ref = null) {
     const reviewId = await getReviewId();
-    const response = await fetch(`/review/${reviewId}/api/file-content?path=${encodeURIComponent(filePath)}`);
+    let url = `/review/${reviewId}/api/file-content?path=${encodeURIComponent(filePath)}`;
+    if (ref) {
+        url += `&ref=${encodeURIComponent(ref)}`;
+    }
+    const response = await fetch(url);
 
     if (response.ok) {
         return response.text();

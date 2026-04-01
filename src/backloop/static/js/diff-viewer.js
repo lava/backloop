@@ -479,18 +479,46 @@ function createFileSection(file, side, anchorId) {
     const header = document.createElement('div');
     header.className = 'file-header';
 
+    const leftGroup = document.createElement('span');
+    leftGroup.className = 'file-header-left';
+
     const pathSpan = document.createElement('span');
     pathSpan.className = 'file-path';
     pathSpan.textContent = file.path;
 
-    header.appendChild(pathSpan);
+    leftGroup.appendChild(pathSpan);
+
+    // Add expand full file button
+    // Old side: no button for added/untracked files (no prior version exists)
+    // New side: no button for deleted files (file no longer exists)
+    const showExpand = !file.is_binary
+        && !(side === 'old' && (file.status === 'added' || file.status === 'untracked'))
+        && !(side === 'new' && file.status === 'deleted');
+    if (showExpand) {
+        const expandBtn = document.createElement('button');
+        expandBtn.className = 'expand-file-btn';
+        expandBtn.title = 'Show full file';
+        expandBtn.innerHTML = `<svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14">
+            <path d="M1 3.5A1.5 1.5 0 012.5 2h3.879a1.5 1.5 0 011.06.44l1.122 1.12A1.5 1.5 0 009.62 4H13.5A1.5 1.5 0 0115 5.5v8a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 011 13.5v-10zM2.5 3a.5.5 0 00-.5.5v10a.5.5 0 00.5.5h11a.5.5 0 00.5-.5v-8a.5.5 0 00-.5-.5H9.62a2.5 2.5 0 01-1.768-.732l-1.12-1.122A.5.5 0 006.378 3H2.5z"/>
+        </svg>`;
+        expandBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            expandFullFile(file, side, anchorId);
+        });
+        leftGroup.appendChild(expandBtn);
+    }
+
+    header.appendChild(leftGroup);
+
+    const rightGroup = document.createElement('span');
+    rightGroup.className = 'file-header-right';
 
     // Add status badge
     if (file.status) {
         const badge = document.createElement('span');
         badge.className = `status-badge status-${file.status}`;
         badge.textContent = file.status.toUpperCase();
-        header.appendChild(badge);
+        rightGroup.appendChild(badge);
     }
 
     // Add submodule badge
@@ -498,8 +526,10 @@ function createFileSection(file, side, anchorId) {
         const subBadge = document.createElement('span');
         subBadge.className = 'status-tag submodule-tag';
         subBadge.textContent = `SUBMODULE: ${file.submodule}`;
-        header.appendChild(subBadge);
+        rightGroup.appendChild(subBadge);
     }
+
+    header.appendChild(rightGroup);
 
     const content = document.createElement('div');
     content.className = 'file-content';
@@ -508,6 +538,161 @@ function createFileSection(file, side, anchorId) {
     section.appendChild(content);
 
     return section;
+}
+
+// Determine the git ref for the old (before) and new (after) sides of the diff
+function getRefsForSides() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const commit = urlParams.get('commit');
+    const range = urlParams.get('range');
+    const since = urlParams.get('since');
+
+    if (commit) {
+        return { oldRef: `${commit}~1`, newRef: commit };
+    } else if (range) {
+        const parts = range.split('..');
+        return { oldRef: parts[0], newRef: parts[1] || 'HEAD' };
+    } else {
+        // Live mode
+        return { oldRef: since || 'HEAD', newRef: null };
+    }
+}
+
+// Expand a file section to show the full file content
+async function expandFullFile(file, side, anchorId) {
+    const sectionId = `${anchorId}-${side}-pane`;
+    const section = document.getElementById(sectionId);
+    if (!section) return;
+
+    const contentEl = section.querySelector('.file-content');
+    const btn = section.querySelector('.expand-file-btn');
+
+    // Toggle: if already expanded, collapse back to diff
+    if (section.dataset.expanded === 'true') {
+        collapseToChunks(file, side, anchorId);
+        return;
+    }
+
+    // Show loading state
+    if (btn) {
+        btn.classList.add('loading');
+        btn.title = 'Loading...';
+    }
+
+    const refs = getRefsForSides();
+    const ref = side === 'old' ? refs.oldRef : refs.newRef;
+    const filePath = file.path;
+
+    try {
+        const content = await api.getFileContent(filePath, ref);
+        if (!content) {
+            if (btn) {
+                btn.classList.remove('loading');
+                btn.title = 'Show full file';
+            }
+            return;
+        }
+
+        const lines = content.split('\n');
+        // Remove trailing empty line from split if file ends with newline
+        if (lines.length > 0 && lines[lines.length - 1] === '') {
+            lines.pop();
+        }
+
+        // Build a set of changed line numbers for highlighting
+        const changedLines = new Set();
+        const lineTypes = new Map();
+        for (const chunk of (file.chunks || [])) {
+            for (const line of chunk.lines) {
+                const num = side === 'old' ? line.oldNum : line.newNum;
+                if (num && line.type !== 'context') {
+                    changedLines.add(num);
+                    lineTypes.set(num, line.type);
+                }
+            }
+        }
+
+        // Clear current content and render full file
+        contentEl.innerHTML = '';
+
+        lines.forEach((lineText, idx) => {
+            const lineNum = idx + 1;
+            const lineDiv = document.createElement('div');
+            lineDiv.className = 'diff-line';
+
+            const type = lineTypes.get(lineNum);
+            if (type === 'addition') {
+                lineDiv.classList.add('addition');
+            } else if (type === 'deletion') {
+                lineDiv.classList.add('deletion');
+            } else {
+                lineDiv.classList.add('context');
+            }
+
+            const lineNumDiv = document.createElement('div');
+            lineNumDiv.className = 'line-number';
+
+            const numSpan = document.createElement('span');
+            numSpan.className = side === 'old' ? 'old-line-num' : 'new-line-num';
+            numSpan.textContent = lineNum;
+            lineNumDiv.appendChild(numSpan);
+
+            const contentSpan = document.createElement('span');
+            contentSpan.className = 'line-content';
+            contentSpan.textContent = lineText || '\u00a0';
+
+            lineDiv.appendChild(lineNumDiv);
+            lineDiv.appendChild(contentSpan);
+            contentEl.appendChild(lineDiv);
+        });
+
+        section.dataset.expanded = 'true';
+        if (btn) {
+            btn.classList.remove('loading');
+            btn.classList.add('active');
+            btn.title = 'Collapse to diff';
+        }
+    } catch (err) {
+        console.error('Failed to expand full file:', err);
+        if (btn) {
+            btn.classList.remove('loading');
+            btn.title = 'Show full file';
+        }
+    }
+}
+
+// Collapse an expanded file section back to diff chunks
+function collapseToChunks(file, side, anchorId) {
+    const sectionId = `${anchorId}-${side}-pane`;
+    const section = document.getElementById(sectionId);
+    if (!section) return;
+
+    const contentEl = section.querySelector('.file-content');
+    contentEl.innerHTML = '';
+
+    // Find the paired section on the other side
+    const otherSide = side === 'old' ? 'new' : 'old';
+    const otherSectionId = `${anchorId}-${otherSide}-pane`;
+    const otherSection = document.getElementById(otherSectionId);
+
+    // Re-render chunks for both sides together
+    let sharedLineCounter = 0;
+    for (const chunk of (file.chunks || [])) {
+        sharedLineCounter = renderChunk(
+            chunk,
+            side === 'old' ? section : otherSection,
+            side === 'new' ? section : otherSection,
+            file.path,
+            sharedLineCounter,
+        );
+    }
+
+    section.dataset.expanded = 'false';
+    const btn = section.querySelector('.expand-file-btn');
+    if (btn) {
+        btn.classList.remove('active');
+        btn.title = 'Show full file';
+    }
 }
 
 // Render a diff chunk

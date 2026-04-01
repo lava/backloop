@@ -20,8 +20,52 @@
     background: #eaeef2;
 }
 
+.file-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.file-header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .file-path {
     font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+.expand-file-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: 1px solid #d0d7de;
+    border-radius: 4px;
+    background: #ffffff;
+    color: #656d76;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.expand-file-btn:hover {
+    background: #e0e4e8;
+    color: #24292f;
+    border-color: #afb8c1;
+}
+
+.expand-file-btn.active {
+    background: #ddf4ff;
+    color: #0969da;
+    border-color: #0969da;
+}
+
+.expand-file-btn.loading {
+    opacity: 0.5;
+    cursor: wait;
 }
 
 .file-stats {

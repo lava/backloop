@@ -224,6 +224,7 @@ def create_review_router() -> APIRouter:
         request: Request,
         review_id: str = Path(...),
         path: str = Query(..., description="Path to the file relative to the repository root"),
+        ref: str | None = Query(None, description="Git ref to read the file at (e.g. HEAD, commit SHA). If omitted, reads from the working tree."),
     ) -> PlainTextResponse:
         review_service = request.app.state.review_service
         review_session = review_service.get_review_session(review_id)
@@ -231,19 +232,36 @@ def create_review_router() -> APIRouter:
             raise HTTPException(status_code=404, detail="Review not found")
 
         repo_root = review_session.git_service.repo_path.resolve()
-        file_path = _resolve_repo_path(repo_root, path)
 
-        if not file_path.exists():
-            raise HTTPException(status_code=404, detail="File not found")
-        if not file_path.is_file():
-            raise HTTPException(status_code=400, detail="Path is not a file")
+        if ref is not None:
+            # Read file content at the given git ref
+            file_path = _resolve_repo_path(repo_root, path)
+            relative_path = file_path.relative_to(repo_root).as_posix()
+            try:
+                result = subprocess.run(
+                    ["git", "show", f"{ref}:{relative_path}"],
+                    cwd=str(repo_root),
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                return PlainTextResponse(result.stdout)
+            except subprocess.CalledProcessError:
+                raise HTTPException(status_code=404, detail=f"File not found at ref '{ref}'")
+        else:
+            file_path = _resolve_repo_path(repo_root, path)
 
-        try:
-            content = file_path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            raise HTTPException(status_code=415, detail="File is not a UTF-8 text file")
+            if not file_path.exists():
+                raise HTTPException(status_code=404, detail="File not found")
+            if not file_path.is_file():
+                raise HTTPException(status_code=400, detail="Path is not a file")
 
-        return PlainTextResponse(content)
+            try:
+                content = file_path.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                raise HTTPException(status_code=415, detail="File is not a UTF-8 text file")
+
+            return PlainTextResponse(content)
 
     @router.post("/review/{review_id}/api/edit")
     async def edit_review_file(
