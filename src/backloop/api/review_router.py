@@ -11,6 +11,7 @@ from backloop.models import Comment, CommentRequest, DiffFile, FileEditRequest, 
 from backloop.api.responses import SuccessResponse
 from backloop.event_manager import EventType
 from backloop.config import settings
+from backloop.version import get_version_info
 
 
 class ApprovalRequest(BaseModel):
@@ -38,6 +39,11 @@ def create_review_router() -> APIRouter:
     async def health_check() -> dict:
         """Health check endpoint for monitoring and testing."""
         return {"status": "ok"}
+
+    @router.get("/version")
+    async def version() -> dict:
+        """Return version info including git commit hash."""
+        return get_version_info()
 
     @router.get("/favicon.ico")
     async def get_favicon() -> FileResponse:
