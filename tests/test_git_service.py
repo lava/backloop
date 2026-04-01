@@ -331,3 +331,69 @@ class TestGitService:
         assert len(files) == 1
         # Should have 2 chunks (one for each change)
         assert len(files[0].chunks) == 2
+
+    def test_parse_diff_filters_submodule_pointer(
+        self, temp_git_repo: Path
+    ) -> None:
+        """Test that submodule pointer diffs (Subproject commit ...) are filtered out."""
+        service = GitService(str(temp_git_repo))
+
+        submodule_diff = (
+            "diff --git a/contrib/plugins b/contrib/plugins\n"
+            "index 960d014..bb3d314 160000\n"
+            "--- a/contrib/plugins\n"
+            "+++ b/contrib/plugins\n"
+            "@@ -1 +1 @@\n"
+            "-Subproject commit 960d010478216969bc6d6370f85ec056531da642\n"
+            "+Subproject commit bb3d314e110ec10f0b0be969951accc072588806\n"
+        )
+        files = service._parse_diff_output(submodule_diff)
+        assert len(files) == 0
+
+    def test_parse_diff_keeps_normal_files_alongside_submodule(
+        self, temp_git_repo: Path
+    ) -> None:
+        """Test that normal file diffs are kept when submodule pointer diffs are filtered."""
+        service = GitService(str(temp_git_repo))
+
+        mixed_diff = (
+            "diff --git a/contrib/plugins b/contrib/plugins\n"
+            "index 960d014..bb3d314 160000\n"
+            "--- a/contrib/plugins\n"
+            "+++ b/contrib/plugins\n"
+            "@@ -1 +1 @@\n"
+            "-Subproject commit 960d010478216969bc6d6370f85ec056531da642\n"
+            "+Subproject commit bb3d314e110ec10f0b0be969951accc072588806\n"
+            "diff --git a/README.md b/README.md\n"
+            "--- a/README.md\n"
+            "+++ b/README.md\n"
+            "@@ -1 +1,2 @@\n"
+            " # Test\n"
+            "+New line\n"
+        )
+        files = service._parse_diff_output(mixed_diff)
+        assert len(files) == 1
+        assert files[0].path == "README.md"
+
+    def test_parse_diff_resets_submodule_after_unresolvable_header(
+        self, temp_git_repo: Path
+    ) -> None:
+        """Test that a Submodule header with no expanded diffs doesn't leak into subsequent files."""
+        service = GitService(str(temp_git_repo))
+
+        # Simulates --submodule=diff output when commits are not present:
+        # the Submodule header appears but no diff --git entries follow for it.
+        diff_with_unresolvable = (
+            "Submodule contrib/plugins 960d010..bb3d314 (commits not present)\n"
+            "Submodule lib/aux/caf 99506c9..e4080f1 (commits not present)\n"
+            "diff --git a/test/main.py b/test/main.py\n"
+            "--- a/test/main.py\n"
+            "+++ b/test/main.py\n"
+            "@@ -1 +1,2 @@\n"
+            " existing\n"
+            "+added\n"
+        )
+        files = service._parse_diff_output(diff_with_unresolvable)
+        assert len(files) == 1
+        assert files[0].path == "test/main.py"
+        assert files[0].submodule is None

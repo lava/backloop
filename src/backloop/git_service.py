@@ -400,9 +400,15 @@ class GitService:
                 # Parse file paths
                 match = re.match(r"diff --git a/(.*) b/(.*)", line)
                 if match:
+                    file_path = match.group(2)
+                    # Reset submodule tracking if this file isn't inside
+                    # the current submodule (e.g. after a "commits not
+                    # present" header that produced no expanded diffs).
+                    if current_submodule and not file_path.startswith(current_submodule + "/"):
+                        current_submodule = None
                     current_file = {
                         "old_path": match.group(1),
-                        "path": match.group(2),
+                        "path": file_path,
                         "chunks": [],
                         "additions": 0,
                         "deletions": 0,
@@ -512,6 +518,10 @@ class GitService:
         if current_file:
             files.append(self._finalize_file(current_file))
 
+        # Filter out submodule pointer diffs (e.g. "Subproject commit <hash>")
+        # These appear alongside the expanded --submodule=diff output and are redundant.
+        files = [f for f in files if not self._is_submodule_pointer_diff(f)]
+
         return files
 
     def _finalize_chunk(self, chunk_data: Dict[str, Any]) -> DiffChunk:
@@ -540,3 +550,12 @@ class GitService:
             status=file_data["status"],
             submodule=file_data.get("submodule"),
         )
+
+    @staticmethod
+    def _is_submodule_pointer_diff(file: DiffFile) -> bool:
+        """Check if a DiffFile is just a submodule pointer change (Subproject commit ...)."""
+        for chunk in file.chunks:
+            for line in chunk.lines:
+                if line.content.startswith("Subproject commit "):
+                    return True
+        return False
