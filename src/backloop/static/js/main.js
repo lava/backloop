@@ -169,6 +169,12 @@ function setupWebSocketHandlers() {
         updateCommentStatus(event.data);
     });
 
+    // Handle comment replied events (agent reply without resolving)
+    onEvent('comment_replied', (event) => {
+        console.log('Comment replied event received:', event);
+        showCommentReply(event.data);
+    });
+
     // Handle comment resolved events
     onEvent('comment_resolved', (event) => {
         console.log('Comment resolved event received:', event);
@@ -236,6 +242,38 @@ function setupWebSocketHandlers() {
         console.log('Auto-refreshing file:', filePath);
         await refreshFile(filePath);
     });
+}
+
+// Show a reply on a comment thread without resolving it
+function showCommentReply(data) {
+    const commentId = data.comment_id;
+    const commentThread = document.querySelector(`.comment-thread[data-comment-id="${commentId}"]`);
+
+    if (!commentThread) {
+        console.warn(`Comment thread not found for comment ${commentId}`);
+        return;
+    }
+
+    const comment = commentThread.querySelector('.comment');
+    if (comment && data.reply_message) {
+        // Remove existing reply message if any
+        const existingReply = comment.querySelector('.agent-reply');
+        if (existingReply) {
+            existingReply.remove();
+        }
+
+        const replyHtml = `
+            <div class="agent-reply" style="margin-top: 8px; padding: 8px; background: #ffffff; border-left: 3px solid #0969da; border-radius: 4px;">
+                <div style="font-size: 12px; color: #57606a; margin-bottom: 4px; font-weight: 600;">
+                    Agent Reply:
+                </div>
+                <div style="color: #1f2328;">
+                    ${escapeHtml(data.reply_message)}
+                </div>
+            </div>
+        `;
+        comment.insertAdjacentHTML('beforeend', replyHtml);
+    }
 }
 
 // Update comment status in the UI

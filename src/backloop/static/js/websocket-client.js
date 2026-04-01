@@ -163,6 +163,14 @@ async function syncCommentStatuses() {
                     type: comment.status === 'in_progress' ? 'comment_dequeued' : 'comment_resolved',
                     data: eventData
                 });
+
+                // If there's a reply message on a non-resolved comment, show it
+                if (comment.reply_message && comment.status !== 'resolved') {
+                    handleEvent({
+                        type: 'comment_replied',
+                        data: eventData
+                    });
+                }
             }
         }
 

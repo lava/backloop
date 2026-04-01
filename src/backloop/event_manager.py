@@ -11,6 +11,7 @@ class EventType(Enum):
     """Types of server-side events."""
 
     COMMENT_DEQUEUED = "comment_dequeued"
+    COMMENT_REPLIED = "comment_replied"
     COMMENT_RESOLVED = "comment_resolved"
     FILE_CHANGED = "file_changed"
     FILE_REMOVED = "file_removed"

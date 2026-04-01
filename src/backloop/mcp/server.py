@@ -25,8 +25,8 @@ DESCRIPTIONS = {
 
 # Workflow:
 After starting the session, call the 'await_comments' tool and handle
-comments until the review is approved. After addressing a comment, call
-the 'resolve_comment' tool to mark it as done.
+comments until the review is approved. Use 'respond_comment' to reply
+with questions or context, and 'resolve_comment' to mark a comment as done.
 
 # Parameters:
 - commit: Review changes for a specific commit (e.g., 'abc123', 'HEAD', 'main')
@@ -56,15 +56,30 @@ Blocks until either:
     "resolve_comment": {
         "full": """Mark a comment as resolved and emit an event to update the frontend.
 
+Use this tool after you have addressed a comment and want to mark it as done.
+Do NOT include a message — use respond_comment() for that.
+
 Parameters:
 - comment_id: The ID of the comment to mark as resolved
-- reply_message: OPTIONAL message to include with the resolution. Only use
-  this when adding non-trivial context or encountering unforeseen issues.
-  Do not send trivial replies like "ok", "done", "fixed the issue".
 
 Returns a status message indicating success or failure.
 """,
-        "brief": "Mark a comment as resolved, optionally with a reply message.",
+        "brief": "Mark a comment as resolved (no reply message).",
+    },
+    "respond_comment": {
+        "full": """Send a reply message on a comment thread without resolving it.
+
+Use this to ask clarifying questions, report difficulties, or provide
+non-trivial context back to the reviewer. Do not send trivial replies
+like "ok", "done", "fixed the issue".
+
+Parameters:
+- comment_id: The ID of the comment to reply to
+- message: The reply message to send
+
+Returns a status message indicating success or failure.
+""",
+        "brief": "Reply to a comment thread with a message.",
     },
 }
 
@@ -215,23 +230,15 @@ async def await_comments() -> Union[dict, str]:
         return "UNKNOWN RESULT"
 
 
-async def resolve_comment(comment_id: str, reply_message: str | None = None) -> str:
+async def resolve_comment(comment_id: str) -> str:
     review_svc, mcp_svc, event_mgr = get_services()
-
-    # Find the review session that contains this comment
-    comment_found = False
-    updated_comment = None
 
     for review_session in review_svc.active_reviews.values():
         comment = review_session.comment_service.get_comment(comment_id)
         if comment:
-            # Update the comment status to RESOLVED and add reply message if provided
-            updated_comment = review_session.comment_service.update_comment_status(
-                comment_id, CommentStatus.RESOLVED, reply_message=reply_message
+            review_session.comment_service.update_comment_status(
+                comment_id, CommentStatus.RESOLVED
             )
-            comment_found = True
-
-            # Emit event for comment being resolved
             await event_mgr.emit_event(
                 EventType.COMMENT_RESOLVED,
                 {
@@ -239,18 +246,39 @@ async def resolve_comment(comment_id: str, reply_message: str | None = None) -> 
                     "file_path": comment.file_path,
                     "line_number": comment.line_number,
                     "status": CommentStatus.RESOLVED.value,
-                    "reply_message": reply_message,
+                    "reply_message": None,
                 },
                 review_id=review_session.id,
             )
-            break
+            return f"Comment {comment_id} has been marked as resolved."
 
-    if comment_found and updated_comment:
-        if reply_message:
-            return f"Comment {comment_id} has been marked as resolved with reply: {reply_message}"
-        return f"Comment {comment_id} has been marked as resolved."
-    else:
-        return f"Comment {comment_id} not found in any active review session."
+    return f"Comment {comment_id} not found in any active review session."
+
+
+async def respond_comment(comment_id: str, message: str) -> str:
+    review_svc, mcp_svc, event_mgr = get_services()
+
+    for review_session in review_svc.active_reviews.values():
+        comment = review_session.comment_service.get_comment(comment_id)
+        if comment:
+            # Set reply_message but keep the current status (don't resolve)
+            comment.reply_message = message
+            review_session.comment_service._save_comments()
+
+            await event_mgr.emit_event(
+                EventType.COMMENT_REPLIED,
+                {
+                    "comment_id": comment_id,
+                    "file_path": comment.file_path,
+                    "line_number": comment.line_number,
+                    "status": comment.status.value,
+                    "reply_message": message,
+                },
+                review_id=review_session.id,
+            )
+            return f"Reply sent on comment {comment_id}: {message}"
+
+    return f"Comment {comment_id} not found in any active review session."
 
 
 def main() -> None:
@@ -277,6 +305,7 @@ def main() -> None:
     mcp.tool(description=DESCRIPTIONS["startreview"][desc_key])(startreview)
     mcp.tool(description=DESCRIPTIONS["await_comments"][desc_key])(await_comments)
     mcp.tool(description=DESCRIPTIONS["resolve_comment"][desc_key])(resolve_comment)
+    mcp.tool(description=DESCRIPTIONS["respond_comment"][desc_key])(respond_comment)
 
     mcp.run("stdio")
 
