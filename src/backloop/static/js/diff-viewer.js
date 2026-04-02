@@ -8,7 +8,7 @@ const FILE_TREE_BASE_PADDING = 16;
 const FILE_TREE_INDENT_PER_LEVEL = 8;
 
 // Single-file mode state
-const SINGLE_MODE_LINE_THRESHOLD = 300;
+const SINGLE_MODE_LINE_THRESHOLD = 50;
 let singleMode = false;
 let selectedFilePath = null;
 let allFiles = []; // cached for re-rendering on selection change
@@ -24,14 +24,15 @@ function setSingleMode(enabled) {
 }
 
 // Count total diff lines across all files
-function countTotalDiffLines(files) {
-    let total = 0;
+function anyFileExceedsLineThreshold(files, threshold) {
     for (const file of files) {
+        let fileLines = 0;
         for (const chunk of (file.chunks || [])) {
-            total += (chunk.lines || []).length;
+            fileLines += (chunk.lines || []).length;
         }
+        if (fileLines > threshold) return true;
     }
-    return total;
+    return false;
 }
 
 // Navigate to prev/next file in single mode
@@ -889,10 +890,9 @@ export async function initializeDiffViewer() {
         if (diffData && diffData.files) {
             // Auto-enable single mode if total diff lines exceed threshold
             if (!singleMode && modeParam !== 'all') {
-                const totalLines = countTotalDiffLines(diffData.files);
-                if (totalLines > SINGLE_MODE_LINE_THRESHOLD) {
+                if (anyFileExceedsLineThreshold(diffData.files, SINGLE_MODE_LINE_THRESHOLD)) {
                     setSingleMode(true);
-                    console.log(`Auto-enabled single file mode (${totalLines} lines > ${SINGLE_MODE_LINE_THRESHOLD} threshold)`);
+                    console.log(`Auto-enabled single file mode (file with >${SINGLE_MODE_LINE_THRESHOLD} diff lines found)`);
                 }
             }
 
