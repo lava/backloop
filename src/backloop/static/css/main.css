@@ -45,6 +45,26 @@ body {
     color: #d73a49;
 }
 
+/* Stale filesystem banner */
+.stale-banner {
+    background: #fff8c5;
+    border-bottom: 1px solid #d4a72c;
+    padding: 8px 20px;
+    font-size: 13px;
+    color: #6a5300;
+    text-align: center;
+}
+
+.stale-banner a {
+    color: #0969da;
+    text-decoration: underline;
+    margin-left: 4px;
+}
+
+.stale-banner a:hover {
+    color: #0550ae;
+}
+
 /* Main layout */
 .main-container {
     display: flex;

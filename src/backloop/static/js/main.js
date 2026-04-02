@@ -7,6 +7,28 @@ import { initializeWebSocket, onEvent } from './websocket-client.js';
 import * as api from './api.js';
 
 
+function isLiveMode() {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('live') === 'true';
+}
+
+function showStaleBanner() {
+    const banner = document.getElementById('stale-banner');
+    if (banner && banner.style.display === 'none') {
+        // Build live mode URL for this review
+        const urlParams = new URLSearchParams(window.location.search);
+        const since = urlParams.get('since') || urlParams.get('commit') || 'HEAD';
+        const livePath = window.location.pathname + `?live=true&since=${encodeURIComponent(since)}`;
+
+        const link = document.getElementById('stale-banner-link');
+        if (link) {
+            link.href = livePath;
+        }
+
+        banner.style.display = 'block';
+    }
+}
+
 function removeFileFromView(filePath) {
     // Remove from file tree
     const anchorId = 'file-' + filePath.replace(/[^a-zA-Z0-9]/g, '-');
@@ -190,12 +212,22 @@ function setupWebSocketHandlers() {
     // Handle review updated events (e.g., file changes)
     onEvent('review_updated', (event) => {
         console.log('Review updated event received:', event);
+        if (!isLiveMode()) {
+            showStaleBanner();
+            return;
+        }
         reloadDiffData();
     });
 
     // Handle file removed events
     onEvent('file_removed', async (event) => {
         console.log('File removed event received:', event);
+
+        if (!isLiveMode()) {
+            showStaleBanner();
+            return;
+        }
+
         const filePath = event.data.file_path;
 
         let relativePath = filePath;
@@ -227,6 +259,12 @@ function setupWebSocketHandlers() {
     // Handle file changed events
     onEvent('file_changed', async (event) => {
         console.log('File changed event received:', event);
+
+        if (!isLiveMode()) {
+            showStaleBanner();
+            return;
+        }
+
         const filePath = event.data.file_path;
 
         // Check if the file exists in the current diff
