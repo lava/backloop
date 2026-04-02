@@ -526,6 +526,30 @@ export async function deleteComment(commentId, buttonElement) {
     }
 }
 
+/**
+ * Display already-loaded comments whose line elements exist in the current DOM.
+ * Called after initial load and after single-mode file switches.
+ */
+export function displayCommentsForCurrentDOM() {
+    for (const [key, locationComments] of Object.entries(commentsData)) {
+        const [filePath, lineNumber, side] = key.split(':');
+
+        const sanitizedPath = filePath.replace(/[^a-zA-Z0-9]/g, '-');
+        const lineElementId = `line-${sanitizedPath}-${lineNumber}-${side}`;
+        const lineElement = document.getElementById(lineElementId);
+
+        if (lineElement) {
+            for (const comment of locationComments) {
+                // Skip if this comment is already displayed
+                if (document.querySelector(`.comment-thread[data-comment-id="${comment.id}"]`)) {
+                    continue;
+                }
+                displayCommentWithQueue(comment, parseInt(lineNumber), side, lineElement);
+            }
+        }
+    }
+}
+
 export async function loadAndDisplayComments(reviewId) {
     try {
         const comments = await api.loadComments(reviewId);
@@ -543,22 +567,8 @@ export async function loadAndDisplayComments(reviewId) {
             commentsData[key].push(comment);
         });
 
-        // Display all comments
-        for (const [key, locationComments] of Object.entries(commentsData)) {
-            const [filePath, lineNumber, side] = key.split(':');
-
-            // Sanitize file path same way as diff-viewer.js
-            const sanitizedPath = filePath.replace(/[^a-zA-Z0-9]/g, '-');
-            const lineElementId = `line-${sanitizedPath}-${lineNumber}-${side}`;
-            const lineElement = document.getElementById(lineElementId);
-
-            if (lineElement) {
-                // Display each comment for this location
-                for (const comment of locationComments) {
-                    displayCommentWithQueue(comment, parseInt(lineNumber), side, lineElement);
-                }
-            }
-        }
+        // Display comments that have matching DOM elements
+        displayCommentsForCurrentDOM();
     } catch (error) {
         console.error('Error loading comments:', error);
     }

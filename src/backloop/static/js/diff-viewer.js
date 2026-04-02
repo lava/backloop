@@ -1,7 +1,7 @@
 // Diff viewer and file tree functionality
 
 import * as api from './api.js';
-import { showCommentForm, preserveInProgressComments, restoreInProgressComments } from './comments.js';
+import { showCommentForm, preserveInProgressComments, restoreInProgressComments, displayCommentsForCurrentDOM } from './comments.js';
 
 // File tree indentation constants
 const FILE_TREE_BASE_PADDING = 16;
@@ -65,6 +65,8 @@ function selectFileInSingleMode(filePath) {
             oldPane.innerHTML = '';
             newPane.innerHTML = '';
             renderFile(file, oldPane, newPane);
+            // Re-display comments for the newly rendered file
+            displayCommentsForCurrentDOM();
         }
     }
 }
