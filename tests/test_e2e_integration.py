@@ -742,9 +742,9 @@ class TestCommentResolution:
         resolved_badge = comment_thread.locator('span:has-text("✓ Resolved")')
         expect(resolved_badge).to_be_visible(timeout=5000)
 
-        # Check that visual styling is applied
+        # Check that comment text is not struck through (resolved comments remain readable)
         comment_body = comment_thread.locator(".comment-body")
-        expect(comment_body).to_have_css("text-decoration-line", "line-through")
+        expect(comment_body).to_have_css("text-decoration-line", "none")
 
         # Check that the resolution note appears
         resolution_note = comment_thread.locator(".resolution-note")

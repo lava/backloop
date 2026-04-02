@@ -261,9 +261,11 @@ async def respond_comment(comment_id: str, message: str) -> str:
     for review_session in review_svc.active_reviews.values():
         comment = review_session.comment_service.get_comment(comment_id)
         if comment:
-            # Set reply_message but keep the current status (don't resolve)
+            # Set reply_message and mark as resolved.
             comment.reply_message = message
-            review_session.comment_service._save_comments()
+            review_session.comment_service.update_comment_status(
+                comment_id, CommentStatus.RESOLVED
+            )
 
             await event_mgr.emit_event(
                 EventType.COMMENT_REPLIED,
@@ -271,7 +273,7 @@ async def respond_comment(comment_id: str, message: str) -> str:
                     "comment_id": comment_id,
                     "file_path": comment.file_path,
                     "line_number": comment.line_number,
-                    "status": comment.status.value,
+                    "status": CommentStatus.RESOLVED.value,
                     "reply_message": message,
                 },
                 review_id=review_session.id,

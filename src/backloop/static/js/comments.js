@@ -267,8 +267,6 @@ export function displayCommentWithQueue(comment, lineNumber, side, lineElement) 
                 ✓ Resolved
             </span>
         `;
-        // Update comment appearance for resolved status
-        commentDiv.style.opacity = '0.7';
         commentDiv.style.borderColor = '#1a7f37';
         commentDiv.style.backgroundColor = '#e6f4ea';
     } else if (comment.queuePosition) {
@@ -279,19 +277,24 @@ export function displayCommentWithQueue(comment, lineNumber, side, lineElement) 
         `;
     }
 
-    const replyMessageHtml = comment.reply_message ? `
-        <div style="margin-top: 8px; padding: 8px; background: #ffffff; border-left: 3px solid #1a7f37; border-radius: 4px;">
+    const replyNoteHtml = comment.reply_message ? `
+        <div class="resolution-note" style="margin-top: 8px; padding: 8px; background: #ffffff; border-left: 3px solid #1a7f37; border-radius: 4px;">
             <div style="font-size: 12px; color: #57606a; margin-bottom: 4px; font-weight: 600;">
-                Resolution Note:
+                Agent Reply:
             </div>
             <div style="color: #1f2328;">
                 ${escapeHtml(comment.reply_message)}
             </div>
         </div>
+    ` : '';
+
+    const replyBtnHtml = comment.status === 'resolved' ? `
         <button class="btn btn-secondary comment-reply-btn" style="margin-top: 8px; font-size: 12px; padding: 2px 10px;">
             Reply
         </button>
     ` : '';
+
+    const replyMessageHtml = replyNoteHtml + replyBtnHtml;
 
     commentDiv.innerHTML = `
         <div class="comment">
@@ -305,7 +308,7 @@ export function displayCommentWithQueue(comment, lineNumber, side, lineElement) 
                     ×
                 </button>
             </div>
-            <div class="comment-body" ${comment.status === 'resolved' ? 'style="text-decoration: line-through;"' : ''}>${escapeHtml(comment.content)}</div>
+            <div class="comment-body">${escapeHtml(comment.content)}</div>
             ${replyMessageHtml}
         </div>
     `;
@@ -334,7 +337,7 @@ export function displayCommentWithQueue(comment, lineNumber, side, lineElement) 
     }
 }
 
-function showInlineReplyForm(commentDiv, parentComment) {
+export function showInlineReplyForm(commentDiv, parentComment) {
     // Don't add duplicate reply forms
     if (commentDiv.querySelector('.inline-reply-form')) return;
 

@@ -1,7 +1,7 @@
 // Main entry point for the review application
 
 import { initializeDiffViewer, approveReview, refreshFile, updatePageTitle, isSingleMode, navigateSingleMode } from './diff-viewer.js';
-import { loadAndDisplayComments, preserveComments, restoreComments, preserveInProgressComments, restoreInProgressComments } from './comments.js';
+import { loadAndDisplayComments, preserveComments, restoreComments, preserveInProgressComments, restoreInProgressComments, showInlineReplyForm } from './comments.js';
 import { openFileEditor, closeEditModal, saveFileEdit } from './file-editor.js';
 import { initializeWebSocket, onEvent } from './websocket-client.js';
 import * as api from './api.js';
@@ -284,34 +284,9 @@ function setupWebSocketHandlers() {
 
 // Show a reply on a comment thread without resolving it
 function showCommentReply(data) {
-    const commentId = data.comment_id;
-    const commentThread = document.querySelector(`.comment-thread[data-comment-id="${commentId}"]`);
-
-    if (!commentThread) {
-        console.warn(`Comment thread not found for comment ${commentId}`);
-        return;
-    }
-
-    const comment = commentThread.querySelector('.comment');
-    if (comment && data.reply_message) {
-        // Remove existing reply message if any
-        const existingReply = comment.querySelector('.agent-reply');
-        if (existingReply) {
-            existingReply.remove();
-        }
-
-        const replyHtml = `
-            <div class="agent-reply" style="margin-top: 8px; padding: 8px; background: #ffffff; border-left: 3px solid #0969da; border-radius: 4px;">
-                <div style="font-size: 12px; color: #57606a; margin-bottom: 4px; font-weight: 600;">
-                    Agent Reply:
-                </div>
-                <div style="color: #1f2328;">
-                    ${escapeHtml(data.reply_message)}
-                </div>
-            </div>
-        `;
-        comment.insertAdjacentHTML('beforeend', replyHtml);
-    }
+    // A reply also resolves the comment, so delegate to updateCommentStatus
+    // which handles the badge, reply display, and reply button.
+    updateCommentStatus(data);
 }
 
 // Update comment status in the UI
@@ -350,21 +325,14 @@ function updateCommentStatus(data) {
                 ✓ Resolved
             </span>
         `;
-        // Update comment appearance for resolved status
-        commentThread.style.opacity = '0.7';
         commentThread.style.borderColor = '#1a7f37';
         commentThread.style.backgroundColor = '#e6f4ea';
-
-        const commentBody = commentThread.querySelector('.comment-body');
-        if (commentBody) {
-            commentBody.style.textDecoration = 'line-through';
-        }
 
         if (data.reply_message) {
             const comment = commentThread.querySelector('.comment');
             if (comment) {
-                // Remove existing reply message if any
-                const existingReply = comment.querySelector('.resolution-note');
+                // Remove existing reply/agent-reply if any
+                const existingReply = comment.querySelector('.resolution-note') || comment.querySelector('.agent-reply');
                 if (existingReply) {
                     existingReply.remove();
                 }
@@ -372,7 +340,7 @@ function updateCommentStatus(data) {
                 const replyMessageHtml = `
                     <div class="resolution-note" style="margin-top: 8px; padding: 8px; background: #ffffff; border-left: 3px solid #1a7f37; border-radius: 4px;">
                         <div style="font-size: 12px; color: #57606a; margin-bottom: 4px; font-weight: 600;">
-                            Resolution Note:
+                            Agent Reply:
                         </div>
                         <div style="color: #1f2328;">
                             ${escapeHtml(data.reply_message)}
@@ -381,6 +349,19 @@ function updateCommentStatus(data) {
                 `;
                 comment.insertAdjacentHTML('beforeend', replyMessageHtml);
             }
+        }
+
+        // Add reply button if not already present
+        const comment = commentThread.querySelector('.comment');
+        if (comment && !comment.querySelector('.comment-reply-btn')) {
+            const replyBtn = document.createElement('button');
+            replyBtn.className = 'btn btn-secondary comment-reply-btn';
+            replyBtn.style.cssText = 'margin-top: 8px; font-size: 12px; padding: 2px 10px;';
+            replyBtn.textContent = 'Reply';
+            replyBtn.addEventListener('click', () => {
+                showInlineReplyForm(commentThread, { id: data.comment_id });
+            });
+            comment.appendChild(replyBtn);
         }
     }
 
