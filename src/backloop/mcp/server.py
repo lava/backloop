@@ -250,7 +250,7 @@ async def resolve_comment(comment_id: str) -> str:
                 },
                 review_id=review_session.id,
             )
-            return f"Comment {comment_id} has been marked as resolved."
+            return "Comment resolved."
 
     return f"Comment {comment_id} not found in any active review session."
 
@@ -276,7 +276,7 @@ async def respond_comment(comment_id: str, message: str) -> str:
                 },
                 review_id=review_session.id,
             )
-            return f"Reply sent on comment {comment_id}: {message}"
+            return "Reply sent."
 
     return f"Comment {comment_id} not found in any active review session."
 
