@@ -502,7 +502,7 @@ function createFileSection(file, side, anchorId) {
         expandBtn.className = 'expand-file-btn';
         expandBtn.title = 'Show full file';
         expandBtn.innerHTML = `<svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14">
-            <path d="M1 3.5A1.5 1.5 0 012.5 2h3.879a1.5 1.5 0 011.06.44l1.122 1.12A1.5 1.5 0 009.62 4H13.5A1.5 1.5 0 0115 5.5v8a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 011 13.5v-10zM2.5 3a.5.5 0 00-.5.5v10a.5.5 0 00.5.5h11a.5.5 0 00.5-.5v-8a.5.5 0 00-.5-.5H9.62a2.5 2.5 0 01-1.768-.732l-1.12-1.122A.5.5 0 006.378 3H2.5z"/>
+            <path d="M8 1a.75.75 0 0 1 .53.22l2.5 2.5a.75.75 0 0 1-1.06 1.06L8 2.81 6.03 4.78a.75.75 0 0 1-1.06-1.06l2.5-2.5A.75.75 0 0 1 8 1zM5.03 11.22a.75.75 0 0 1 1.06 0L8 13.19l1.97-1.97a.75.75 0 1 1 1.06 1.06l-2.5 2.5a.75.75 0 0 1-1.06 0l-2.5-2.5a.75.75 0 0 1 0-1.06z"/>
         </svg>`;
         expandBtn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -618,10 +618,13 @@ async function expandFullFile(file, side, anchorId) {
         // Clear current content and render full file
         contentEl.innerHTML = '';
 
+        const sanitizedPath = file.path.replace(/[^a-zA-Z0-9]/g, '-');
+
         lines.forEach((lineText, idx) => {
             const lineNum = idx + 1;
             const lineDiv = document.createElement('div');
             lineDiv.className = 'diff-line';
+            lineDiv.id = `line-${sanitizedPath}-${lineNum}-${side}`;
 
             const type = lineTypes.get(lineNum);
             if (type === 'addition') {
@@ -648,6 +651,9 @@ async function expandFullFile(file, side, anchorId) {
             lineDiv.appendChild(contentSpan);
             contentEl.appendChild(lineDiv);
         });
+
+        // Re-display any existing comments for this file
+        displayCommentsForCurrentDOM();
 
         section.dataset.expanded = 'true';
         if (btn) {
@@ -689,6 +695,9 @@ function collapseToChunks(file, side, anchorId) {
             sharedLineCounter,
         );
     }
+
+    // Re-display any existing comments for this file
+    displayCommentsForCurrentDOM();
 
     section.dataset.expanded = 'false';
     const btn = section.querySelector('.expand-file-btn');
