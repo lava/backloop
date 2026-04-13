@@ -12,6 +12,8 @@ body {
     color: #1f2328;
     height: 100vh;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 /* Header styles */
@@ -23,6 +25,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-shrink: 0;
 }
 
 .header h1 {
@@ -43,6 +46,130 @@ body {
 .connection-status.disconnected,
 .connection-status.error {
     color: #d73a49;
+}
+
+/* Header layout */
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.settings-toggle {
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 4px;
+    cursor: pointer;
+    color: #656d76;
+    display: flex;
+    align-items: center;
+    transition: all 0.15s;
+}
+
+.settings-toggle:hover {
+    background: #f6f8fa;
+    color: #24292f;
+    border-color: #d0d7de;
+}
+
+.settings-toggle.active {
+    color: #0969da;
+    background: #ddf4ff;
+    border-color: #0969da;
+}
+
+/* Control panel */
+.control-panel {
+    background: #f6f8fa;
+    border-bottom: 1px solid #d0d7de;
+    padding: 6px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 13px;
+}
+
+.control-panel-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.control-panel-label {
+    color: #656d76;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.mode-toggle {
+    display: flex;
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.mode-btn {
+    background: #fff;
+    border: none;
+    padding: 3px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    color: #656d76;
+    font-weight: 500;
+    transition: all 0.15s;
+    border-right: 1px solid #d0d7de;
+}
+
+.mode-btn:last-child {
+    border-right: none;
+}
+
+.mode-btn:hover {
+    background: #f0f3f6;
+    color: #24292f;
+}
+
+.mode-btn.active {
+    background: #0969da;
+    color: #fff;
+}
+
+.control-panel-input {
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 12px;
+    font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+    color: #24292f;
+    width: 120px;
+    outline: none;
+}
+
+.control-panel-input:focus {
+    border-color: #0969da;
+    box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.1);
+}
+
+.control-panel-input-wide {
+    width: 200px;
+}
+
+.control-panel-apply {
+    padding: 3px 10px !important;
+    font-size: 12px !important;
+}
+
+.control-panel-separator {
+    width: 1px;
+    height: 20px;
+    background: #d0d7de;
 }
 
 /* Stale filesystem banner */
@@ -68,7 +195,8 @@ body {
 /* Main layout */
 .main-container {
     display: flex;
-    height: calc(100vh - 65px);
+    flex: 1;
+    min-height: 0;
     background: #fff;
 }
 

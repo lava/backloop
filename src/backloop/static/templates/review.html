@@ -14,8 +14,15 @@
 </head>
 <body>
     <div class="header">
-        <h1>Code Review <span id="connection-status" class="connection-status disconnected"></span></h1>
-        <div>
+        <div class="header-left">
+            <h1>Code Review <span id="connection-status" class="connection-status disconnected"></span></h1>
+            <button class="settings-toggle" id="settings-toggle-btn" title="Review settings">
+                <svg viewBox="0 0 16 16" fill="currentColor" width="16" height="16">
+                    <path d="M8 0a8.2 8.2 0 0 1 .701.031C9.444.095 9.99.645 10.16 1.29l.288 1.107c.018.066.079.158.212.224.231.114.454.243.668.386.123.082.233.09.299.071l1.1-.303c.652-.18 1.37-.042 1.82.528.45.57.52 1.31.244 1.96l-.442.996c-.029.065-.019.17.053.278.128.191.243.392.343.6.058.121.146.194.22.213l1.112.277c.656.164 1.18.694 1.206 1.427a8.488 8.488 0 0 1 0 1.39c-.025.733-.55 1.263-1.206 1.427l-1.112.277c-.074.02-.162.092-.22.213a5.3 5.3 0 0 1-.343.6c-.072.108-.082.213-.053.278l.442.996c.276.65.206 1.39-.244 1.96-.45.57-1.168.708-1.82.528l-1.1-.303c-.066-.019-.176-.011-.299.071a5.3 5.3 0 0 1-.668.386c-.133.066-.194.158-.212.224l-.288 1.107c-.17.645-.716 1.195-1.459 1.26a8.1 8.1 0 0 1-1.402 0c-.743-.065-1.289-.615-1.459-1.26l-.288-1.107c-.018-.066-.079-.158-.212-.224a5.7 5.7 0 0 1-.668-.386c-.123-.082-.233-.09-.299-.071l-1.1.303c-.652.18-1.37.042-1.82-.528-.45-.57-.52-1.31-.244-1.96l.442-.996c.029-.065.019-.17-.053-.278a5.3 5.3 0 0 1-.343-.6c-.058-.121-.146-.194-.22-.213l-1.112-.277c-.656-.164-1.18-.694-1.206-1.427a8.5 8.5 0 0 1 0-1.39c.025-.733.55-1.263 1.206-1.427l1.112-.277c.074-.02.162-.092.22-.213.1-.208.215-.409.343-.6.072-.108.082-.213.053-.278l-.442-.996c-.276-.65-.206-1.39.244-1.96.45-.57 1.168-.708 1.82-.528l1.1.303c.066.019.176.011.299-.071.214-.143.437-.272.668-.386.133-.066.194-.158.212-.224L5.84 1.29c.17-.645.716-1.195 1.459-1.26A8.2 8.2 0 0 1 8 0ZM8 5a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/>
+                </svg>
+            </button>
+        </div>
+        <div class="header-actions">
             <button class="refresh-button" id="refresh-btn" onclick="window.location.reload()" style="display: none;">
                 <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14">
                     <path d="M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z"/>
@@ -28,6 +35,33 @@
                 </svg>
                 Approve Review
             </button>
+        </div>
+    </div>
+
+    <div class="control-panel" id="control-panel" style="display: none;">
+        <div class="control-panel-group">
+            <span class="control-panel-label">Mode</span>
+            <div class="mode-toggle">
+                <button class="mode-btn" data-mode="live" id="mode-live-btn">Live</button>
+                <button class="mode-btn" data-mode="range" id="mode-range-btn">Range</button>
+            </div>
+        </div>
+        <div class="control-panel-group" id="live-controls">
+            <span class="control-panel-label">Since</span>
+            <input type="text" class="control-panel-input" id="since-input" value="HEAD" spellcheck="false" />
+        </div>
+        <div class="control-panel-group" id="range-controls" style="display: none;">
+            <span class="control-panel-label">Range</span>
+            <input type="text" class="control-panel-input control-panel-input-wide" id="range-input" placeholder="origin/main...HEAD" spellcheck="false" />
+        </div>
+        <button class="btn btn-secondary control-panel-apply" id="control-panel-apply">Apply</button>
+        <div class="control-panel-separator"></div>
+        <div class="control-panel-group">
+            <span class="control-panel-label">View</span>
+            <div class="mode-toggle">
+                <button class="mode-btn" id="view-combined-btn">Combined</button>
+                <button class="mode-btn" id="view-single-btn">Single file</button>
+            </div>
         </div>
     </div>
 

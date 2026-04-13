@@ -15,7 +15,7 @@ let allFiles = []; // cached for re-rendering on selection change
 
 export function isSingleMode() { return singleMode; }
 
-function setSingleMode(enabled) {
+export function setSingleMode(enabled) {
     singleMode = enabled;
     document.body.classList.toggle('single-mode', enabled);
     // Update toggle button state
@@ -876,9 +876,6 @@ export async function initializeDiffViewer() {
     if (modeParam === 'single') {
         setSingleMode(true);
     }
-
-    // Setup single mode toggle button in sidebar header
-    setupSingleModeToggle();
 
     // Setup line click handlers
     setupLineClickHandlers();

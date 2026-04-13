@@ -1,6 +1,6 @@
 // Main entry point for the review application
 
-import { initializeDiffViewer, approveReview, refreshFile, updatePageTitle, isSingleMode, navigateSingleMode } from './diff-viewer.js';
+import { initializeDiffViewer, approveReview, refreshFile, updatePageTitle, isSingleMode, setSingleMode, navigateSingleMode } from './diff-viewer.js';
 import { loadAndDisplayComments, preserveComments, restoreComments, preserveInProgressComments, restoreInProgressComments, showInlineReplyForm } from './comments.js';
 import { openFileEditor, closeEditModal, saveFileEdit } from './file-editor.js';
 import { initializeWebSocket, onEvent } from './websocket-client.js';
@@ -10,6 +10,127 @@ import * as api from './api.js';
 function isLiveMode() {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get('live') === 'true';
+}
+
+function initControlPanel() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sinceInput = document.getElementById('since-input');
+    const rangeInput = document.getElementById('range-input');
+    const liveControls = document.getElementById('live-controls');
+    const rangeControls = document.getElementById('range-controls');
+    const modeLiveBtn = document.getElementById('mode-live-btn');
+    const modeRangeBtn = document.getElementById('mode-range-btn');
+
+    // Determine current mode from URL params
+    const isLive = urlParams.get('live') === 'true';
+    const range = urlParams.get('range');
+    const commit = urlParams.get('commit');
+
+    if (range || commit) {
+        // Range / commit mode
+        modeRangeBtn.classList.add('active');
+        modeLiveBtn.classList.remove('active');
+        liveControls.style.display = 'none';
+        rangeControls.style.display = '';
+        rangeInput.value = range || (commit + '~1..' + commit);
+    } else {
+        // Live mode (default)
+        modeLiveBtn.classList.add('active');
+        modeRangeBtn.classList.remove('active');
+        liveControls.style.display = '';
+        rangeControls.style.display = 'none';
+        sinceInput.value = urlParams.get('since') || 'HEAD';
+    }
+
+    // Settings toggle
+    const settingsBtn = document.getElementById('settings-toggle-btn');
+    const controlPanel = document.getElementById('control-panel');
+    settingsBtn.addEventListener('click', () => {
+        const isVisible = controlPanel.style.display !== 'none';
+        controlPanel.style.display = isVisible ? 'none' : '';
+        settingsBtn.classList.toggle('active', !isVisible);
+    });
+
+    // Mode toggle clicks
+    modeLiveBtn.addEventListener('click', () => {
+        modeLiveBtn.classList.add('active');
+        modeRangeBtn.classList.remove('active');
+        liveControls.style.display = '';
+        rangeControls.style.display = 'none';
+    });
+
+    modeRangeBtn.addEventListener('click', () => {
+        modeRangeBtn.classList.add('active');
+        modeLiveBtn.classList.remove('active');
+        liveControls.style.display = 'none';
+        rangeControls.style.display = '';
+        // Pre-fill with merge-base range if empty
+        if (!rangeInput.value) {
+            rangeInput.value = 'origin/main...HEAD';
+        }
+    });
+
+    // Apply button
+    document.getElementById('control-panel-apply').addEventListener('click', applyControlPanel);
+
+    // Enter key in inputs
+    sinceInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') applyControlPanel();
+    });
+    rangeInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') applyControlPanel();
+    });
+
+    // View mode toggle (combined / single file)
+    const viewCombinedBtn = document.getElementById('view-combined-btn');
+    const viewSingleBtn = document.getElementById('view-single-btn');
+
+    function syncViewToggle() {
+        const single = isSingleMode();
+        viewSingleBtn.classList.toggle('active', single);
+        viewCombinedBtn.classList.toggle('active', !single);
+    }
+
+    // Initial state will be set after initializeDiffViewer runs, so observe via MutationObserver
+    new MutationObserver(syncViewToggle).observe(
+        document.body, { attributes: true, attributeFilter: ['class'] }
+    );
+    syncViewToggle();
+
+    viewCombinedBtn.addEventListener('click', () => {
+        if (isSingleMode()) {
+            setSingleMode(false);
+            import('./diff-viewer.js').then(m => m.renderDiffContent([])).catch(() => {});
+            // Trigger a full reload of diff to re-render all files
+            reloadDiffData();
+        }
+    });
+
+    viewSingleBtn.addEventListener('click', () => {
+        if (!isSingleMode()) {
+            setSingleMode(true);
+            reloadDiffData();
+        }
+    });
+}
+
+function applyControlPanel() {
+    const modeLiveBtn = document.getElementById('mode-live-btn');
+    const sinceInput = document.getElementById('since-input');
+    const rangeInput = document.getElementById('range-input');
+    const isLiveSelected = modeLiveBtn.classList.contains('active');
+
+    const params = new URLSearchParams();
+    if (isLiveSelected) {
+        params.set('live', 'true');
+        params.set('since', sinceInput.value.trim() || 'HEAD');
+    } else {
+        const rangeVal = rangeInput.value.trim();
+        if (!rangeVal) return; // Don't navigate with empty range
+        params.set('range', rangeVal);
+    }
+
+    window.location.search = params.toString();
 }
 
 function showStaleBanner() {
@@ -110,6 +231,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('Review application initializing...');
 
     try {
+        // Initialize control panel from URL params
+        initControlPanel();
+
         // Initialize diff viewer
         await initializeDiffViewer();
 
