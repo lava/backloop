@@ -120,8 +120,9 @@ export async function saveFileEdit() {
         // Close modal
         closeEditModal();
 
-        // Reload page to show updated diff
-        window.location.reload();
+        // Signal that the diff needs refreshing (without full page reload,
+        // which would lose single-file-mode selection state)
+        window.dispatchEvent(new CustomEvent('diff-needs-reload'));
 
     } catch (error) {
         console.error('Error saving file:', error);

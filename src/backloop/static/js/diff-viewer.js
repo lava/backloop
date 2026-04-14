@@ -14,6 +14,7 @@ let selectedFilePath = null;
 let allFiles = []; // cached for re-rendering on selection change
 
 export function isSingleMode() { return singleMode; }
+export function getSelectedFilePath() { return selectedFilePath; }
 
 export function setSingleMode(enabled) {
     singleMode = enabled;
@@ -871,6 +872,7 @@ export async function initializeDiffViewer() {
     const live = urlParams.get('live') === 'true';
     const mock = urlParams.get('mock') === 'true';
     const modeParam = urlParams.get('mode');
+    const fileParam = urlParams.get('file');
 
     // Check if single mode is forced via query param
     if (modeParam === 'single') {
@@ -900,6 +902,12 @@ export async function initializeDiffViewer() {
                     setSingleMode(true);
                     console.log(`Auto-enabled single file mode (file with >${SINGLE_MODE_LINE_THRESHOLD} diff lines found)`);
                 }
+            }
+
+            // Pre-select a file from the URL ?file= param
+            if (fileParam && diffData.files.some(f => f.path === fileParam)) {
+                if (!singleMode) setSingleMode(true);
+                selectedFilePath = fileParam;
             }
 
             // Build and render file tree

@@ -1,11 +1,19 @@
 // Main entry point for the review application
 
-import { initializeDiffViewer, approveReview, refreshFile, updatePageTitle, isSingleMode, setSingleMode, navigateSingleMode } from './diff-viewer.js';
+import { initializeDiffViewer, approveReview, refreshFile, updatePageTitle, isSingleMode, setSingleMode, navigateSingleMode, getSelectedFilePath } from './diff-viewer.js';
 import { loadAndDisplayComments, preserveComments, restoreComments, preserveInProgressComments, restoreInProgressComments, showInlineReplyForm } from './comments.js';
 import { openFileEditor, closeEditModal, saveFileEdit } from './file-editor.js';
 import { initializeWebSocket, onEvent } from './websocket-client.js';
 import * as api from './api.js';
 
+
+// Extract the base (left) side of a "base...tip" range, or null if not that form.
+function parseRangeBase(range) {
+    if (!range) return null;
+    const idx = range.indexOf('...');
+    if (idx <= 0) return null;
+    return range.substring(0, idx);
+}
 
 function isLiveMode() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -57,6 +65,9 @@ function initControlPanel() {
         modeRangeBtn.classList.remove('active');
         liveControls.style.display = '';
         rangeControls.style.display = 'none';
+        // Pre-fill since with the base commit from the current range
+        const base = parseRangeBase(rangeInput.value);
+        if (base) sinceInput.value = base;
     });
 
     modeRangeBtn.addEventListener('click', () => {
@@ -136,10 +147,18 @@ function applyControlPanel() {
 function showStaleBanner() {
     const banner = document.getElementById('stale-banner');
     if (banner && banner.style.display === 'none') {
-        // Build live mode URL for this review
+        // Build live mode URL preserving the base commit from range/since/commit
         const urlParams = new URLSearchParams(window.location.search);
-        const since = urlParams.get('since') || urlParams.get('commit') || 'HEAD';
-        const livePath = window.location.pathname + `?live=true&since=${encodeURIComponent(since)}`;
+        const since = parseRangeBase(urlParams.get('range'))
+            || urlParams.get('since') || urlParams.get('commit') || 'HEAD';
+
+        const liveParams = new URLSearchParams({ live: 'true', since });
+        // Preserve selected file so the link opens the same file
+        const selectedFile = getSelectedFilePath();
+        if (isSingleMode() && selectedFile) {
+            liveParams.set('file', selectedFile);
+        }
+        const livePath = window.location.pathname + '?' + liveParams.toString();
 
         const link = document.getElementById('stale-banner-link');
         if (link) {
@@ -257,6 +276,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Initialize WebSocket for real-time updates
         initializeWebSocket();
+
+        // Reload diff data when file editor saves (without full page reload,
+        // so single-file-mode selection is preserved)
+        window.addEventListener('diff-needs-reload', () => {
+            reloadDiffData();
+            // In non-live mode the diff shows a fixed commit range, so the
+            // working-tree edit won't appear — show the stale banner instead.
+            if (!isLiveMode()) {
+                showStaleBanner();
+            }
+        });
 
         console.log('Review application initialized successfully');
     } catch (error) {
